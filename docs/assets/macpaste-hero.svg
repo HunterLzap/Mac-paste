@@ -1,189 +1,302 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 440" width="1200" height="440">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" width="1200" height="680">
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0b1120"/>
-      <stop offset="50%" stop-color="#111827"/>
+    <linearGradient id="canvasBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#1e293b"/>
       <stop offset="100%" stop-color="#0f172a"/>
     </linearGradient>
-    <linearGradient id="accentCyan" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#06b6d4"/>
-      <stop offset="100%" stop-color="#3b82f6"/>
-    </linearGradient>
-    <linearGradient id="accentAmber" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#ef4444"/>
-    </linearGradient>
-    <linearGradient id="accentEmerald" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#10b981"/>
-      <stop offset="100%" stop-color="#06b6d4"/>
-    </linearGradient>
-    <filter id="cardShadow" x="-5%" y="-5%" width="110%" height="115%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.45"/>
+    <filter id="winDropShadow" x="-10%" y="-10%" width="125%" height="130%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+    <filter id="subDropShadow" x="-10%" y="-10%" width="125%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.45"/>
     </filter>
   </defs>
 
-  <!-- Background -->
-  <rect width="1200" height="440" rx="18" fill="url(#bgGrad)" stroke="#1e293b" stroke-width="2"/>
+  <!-- 总体暗色画板背景 -->
+  <rect width="1200" height="680" rx="16" fill="url(#canvasBg)"/>
 
-  <!-- Subtle Grid Lines -->
-  <g stroke="#1e293b" stroke-width="1" opacity="0.55">
-    <line x1="0" y1="64" x2="1200" y2="64"/>
-    <line x1="405" y1="64" x2="405" y2="440"/>
-    <line x1="805" y1="64" x2="805" y2="440"/>
+  <!-- 背景微弱辅助线与说明 -->
+  <g stroke="#334155" stroke-width="1" opacity="0.35">
+    <line x1="40" y1="48" x2="1160" y2="48"/>
+    <line x1="530" y1="68" x2="530" y2="650"/>
   </g>
 
-  <!-- Top macOS Menu Bar Simulation -->
-  <rect x="2" y="2" width="1196" height="44" rx="16" fill="#090d16" opacity="0.85"/>
-  <circle cx="28" cy="24" r="6" fill="#ef4444"/>
-  <circle cx="48" cy="24" r="6" fill="#f59e0b"/>
-  <circle cx="68" cy="24" r="6" fill="#10b981"/>
-  <text x="96" y="29" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif" font-size="13" font-weight="600" fill="#94a3b8">MacPaste — Clipboard · Snip &amp; Scroll Capture · Live Screen Pins</text>
-  <g transform="translate(880, 11)">
-    <rect width="74" height="24" rx="6" fill="#1e293b" stroke="#334155"/>
-    <text x="37" y="16" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, monospace" font-size="11" font-weight="600" fill="#38bdf8">⌥V 主面板</text>
-  </g>
-  <g transform="translate(964, 11)">
-    <rect width="70" height="24" rx="6" fill="#1e293b" stroke="#334155"/>
-    <text x="35" y="16" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, monospace" font-size="11" font-weight="600" fill="#22d3ee">F1 截图</text>
-  </g>
-  <g transform="translate(1044, 11)">
-    <rect width="132" height="24" rx="6" fill="#1e293b" stroke="#334155"/>
-    <text x="66" y="16" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, monospace" font-size="11" font-weight="600" fill="#fbbf24">F3 / ⇧F3 活贴图</text>
-  </g>
+  <!-- 顶部简短提示 -->
+  <text x="40" y="34" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="14" font-weight="600" fill="#94a3b8">MacPaste UI 真实结构复原图（基于源码实际渲染布局）</text>
+  <text x="1160" y="34" text-anchor="end" font-family="ui-monospace, monospace" font-size="12" fill="#38bdf8">⌥V 主窗口 · F1 截图标注 · F3 屏幕活贴图</text>
 
-  <!-- Column 1: Clipboard History & Sequential Paste -->
-  <g transform="translate(28, 72)" filter="url(#cardShadow)">
-    <rect width="350" height="338" rx="12" fill="#111827" stroke="#334155" stroke-width="1.5"/>
-    <rect width="350" height="4" rx="2" fill="url(#accentCyan)"/>
-    <text x="18" y="30" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">1. 智能剪贴板与按序粘贴</text>
-    <text x="332" y="30" text-anchor="end" font-family="ui-monospace, monospace" font-size="11" fill="#38bdf8">SQLite WAL</text>
+  <!-- ======================== 左侧：主窗口（严格按 460×600 比例实现） ======================== -->
+  <g transform="translate(45, 60)" filter="url(#winDropShadow)">
+    <!-- 窗口底色 (windowBackgroundColor 风格) -->
+    <rect width="450" height="590" rx="10" fill="#1c1f26" stroke="#374151" stroke-width="1"/>
 
-    <!-- Segmented Tabs -->
-    <rect x="16" y="44" width="318" height="26" rx="6" fill="#1e293b"/>
-    <rect x="18" y="46" width="78" height="22" rx="5" fill="#0284c7"/>
-    <text x="57" y="61" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" font-weight="600" fill="#ffffff">短文本</text>
-    <text x="136" y="61" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">长文本</text>
-    <text x="215" y="61" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">图片</text>
-    <text x="294" y="61" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">表格</text>
+    <!-- 1. 一体化头部 (Header) -->
+    <!-- 红绿灯区域 (悬浮在左侧 62pt 空间) -->
+    <circle cx="20" cy="20" r="5.5" fill="#ef4444"/>
+    <circle cx="38" cy="20" r="5.5" fill="#f59e0b"/>
+    <circle cx="56" cy="20" r="5.5" fill="#10b981"/>
 
-    <!-- Sequential Card Active -->
-    <rect x="16" y="82" width="318" height="86" rx="8" fill="#0c243c" stroke="#0284c7" stroke-width="1.5"/>
-    <rect x="26" y="92" width="76" height="18" rx="9" fill="#0284c7"/>
-    <text x="64" y="104" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" font-weight="700" fill="#ffffff">按序 2 / 5</text>
-    <text x="110" y="104" font-family="-apple-system, sans-serif" font-size="10" fill="#7dd3fc">直接按 ⌘V 自动推进下一段</text>
-    <text x="26" y="128" font-family="ui-monospace, monospace" font-size="12" font-weight="600" fill="#e2e8f0">当前：ssh deploy@prod-node-02</text>
-    <text x="26" y="148" font-family="ui-monospace, monospace" font-size="11" fill="#64748b">下一段 (3/5)：systemctl restart api</text>
-
-    <!-- Table Card Preview -->
-    <rect x="16" y="178" width="318" height="82" rx="8" fill="#1e293b" stroke="#334155"/>
-    <text x="26" y="198" font-family="-apple-system, sans-serif" font-size="11" font-weight="600" fill="#cbd5e1">📊 表格 12 行 × 4 列 · HTML + TSV 双表示</text>
-    <rect x="26" y="208" width="298" height="40" rx="4" fill="#0f172a" stroke="#334155"/>
-    <line x1="115" y1="208" x2="115" y2="248" stroke="#334155"/>
-    <line x1="215" y1="208" x2="215" y2="248" stroke="#334155"/>
-    <line x1="26" y1="228" x2="324" y2="228" stroke="#334155"/>
-    <text x="34" y="222" font-family="ui-monospace, monospace" font-size="10" fill="#94a3b8">模块</text>
-    <text x="124" y="222" font-family="ui-monospace, monospace" font-size="10" fill="#94a3b8">延迟</text>
-    <text x="224" y="222" font-family="ui-monospace, monospace" font-size="10" fill="#38bdf8">双击复制单元格</text>
-    <text x="34" y="242" font-family="ui-monospace, monospace" font-size="10" fill="#e2e8f0">Vision配准</text>
-    <text x="124" y="242" font-family="ui-monospace, monospace" font-size="10" fill="#34d399">&lt; 3 ms</text>
-    <text x="224" y="242" font-family="ui-monospace, monospace" font-size="10" fill="#e2e8f0">Shift 框选区域</text>
-
-    <!-- Image Pixel Fingerprint Note -->
-    <rect x="16" y="270" width="318" height="54" rx="8" fill="#1e293b" stroke="#334155"/>
-    <text x="26" y="292" font-family="-apple-system, sans-serif" font-size="11" font-weight="600" fill="#f8fafc">🖼️ 32×32 sRGB 像素指纹去重</text>
-    <text x="26" y="311" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">跨 PNG/TIFF 编码一致收敛 · 悬停分栏预览 · 置顶保护</text>
-  </g>
-
-  <!-- Column 2: Snip & Vision Scrolling Capture -->
-  <g transform="translate(425, 72)" filter="url(#cardShadow)">
-    <rect width="350" height="338" rx="12" fill="#111827" stroke="#334155" stroke-width="1.5"/>
-    <rect width="350" height="4" rx="2" fill="url(#accentEmerald)"/>
-    <text x="18" y="30" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">2. 区域标注与滚动长截图</text>
-    <text x="332" y="30" text-anchor="end" font-family="ui-monospace, monospace" font-size="11" fill="#34d399">Apple Vision</text>
-
-    <!-- Selection Canvas Box -->
-    <rect x="16" y="46" width="218" height="176" rx="6" fill="#090d16" stroke="#06b6d4" stroke-width="2" stroke-dasharray="5,3"/>
-    <!-- 8 Control Handles -->
-    <rect x="13" y="43" width="6" height="6" fill="#06b6d4"/>
-    <rect x="231" y="43" width="6" height="6" fill="#06b6d4"/>
-    <rect x="13" y="219" width="6" height="6" fill="#06b6d4"/>
-    <rect x="231" y="219" width="6" height="6" fill="#06b6d4"/>
-
-    <text x="28" y="70" font-family="ui-monospace, monospace" font-size="10.5" fill="#22d3ee">1280 × 3840 px · 镂空穿透选区</text>
-    <rect x="28" y="82" width="145" height="28" rx="4" fill="none" stroke="#ef4444" stroke-width="2"/>
-    <text x="36" y="100" font-family="-apple-system, sans-serif" font-size="11" fill="#fca5a5">矩形 / 圆框 / 箭头</text>
-    <rect x="28" y="120" width="188" height="20" rx="3" fill="#eab308" opacity="0.28"/>
-    <text x="34" y="134" font-family="-apple-system, sans-serif" font-size="11" fill="#fef08a">荧光笔 / 画笔 / 像素马赛克 / 文字</text>
-    <text x="28" y="164" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">• 空格键：一键识别鼠标下独立窗口</text>
-    <text x="28" y="184" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">• 放大镜：实时取色 (C 复制 HEX)</text>
-    <text x="28" y="204" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">• ⌘Z / ⇧⌘Z：多步无损撤销与重做</text>
-
-    <!-- Right Preview Card for Long Screenshot -->
-    <rect x="244" y="46" width="90" height="176" rx="8" fill="#1e293b" stroke="#475569"/>
-    <text x="289" y="64" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" font-weight="600" fill="#38bdf8">长图实时生长</text>
-    <rect x="254" y="72" width="70" height="120" rx="4" fill="#0f172a" stroke="#0ea5e9"/>
-    <line x1="260" y1="88" x2="318" y2="88" stroke="#334155" stroke-width="3"/>
-    <line x1="260" y1="102" x2="310" y2="102" stroke="#334155" stroke-width="3"/>
-    <line x1="260" y1="116" x2="318" y2="116" stroke="#0ea5e9" stroke-width="3"/>
-    <line x1="260" y1="130" x2="304" y2="130" stroke="#0ea5e9" stroke-width="3"/>
-    <line x1="260" y1="144" x2="318" y2="144" stroke="#34d399" stroke-width="3"/>
-    <line x1="260" y1="158" x2="298" y2="158" stroke="#34d399" stroke-width="3"/>
-    <text x="289" y="209" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9.5" fill="#94a3b8">双向防重锚点</text>
-
-    <!-- Bottom Toolbar Info -->
-    <rect x="16" y="234" width="318" height="90" rx="8" fill="#1e293b" stroke="#334155"/>
-    <text x="26" y="256" font-family="-apple-system, sans-serif" font-size="11.5" font-weight="700" fill="#f8fafc">📜 亚像素级滚动长截图拼接引擎</text>
-    <text x="26" y="276" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">• VNTranslationalImageRegistrationRequest 估算位移</text>
-    <text x="26" y="294" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">• 双向像素残差 (MAD) 投票 + 锚点模型（回滚不重复）</text>
-    <text x="26" y="312" font-family="-apple-system, sans-serif" font-size="10.5" fill="#38bdf8">• 支持手动滚轮/触控板滚动 &amp; 空格键自动平滑滚动</text>
-  </g>
-
-  <!-- Column 3: Interactive Floating Pins & OCR -->
-  <g transform="translate(822, 72)" filter="url(#cardShadow)">
-    <rect width="350" height="338" rx="12" fill="#111827" stroke="#334155" stroke-width="1.5"/>
-    <rect width="350" height="4" rx="2" fill="url(#accentAmber)"/>
-    <text x="18" y="30" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">3. 置顶活贴图与离线 OCR</text>
-    <text x="332" y="30" text-anchor="end" font-family="ui-monospace, monospace" font-size="11" fill="#fbbf24">VisionKit</text>
-
-    <!-- Pin Window Header Mock -->
-    <rect x="16" y="46" width="318" height="172" rx="9" fill="#0f172a" stroke="#f59e0b" stroke-width="1.2"/>
-    <rect x="16" y="46" width="318" height="30" rx="9" fill="#1e293b"/>
-    <circle cx="30" cy="61" r="4" fill="#f59e0b"/>
-    <text x="42" y="65" font-family="-apple-system, sans-serif" font-size="10.5" font-weight="600" fill="#e2e8f0">图片文字 (6 行) · 85%</text>
-    <rect x="188" y="52" width="56" height="18" rx="9" fill="#0284c7"/>
-    <text x="216" y="64" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="9.5" font-weight="600" fill="#ffffff">提取文字</text>
-    <rect x="250" y="52" width="44" height="18" rx="9" fill="#334155"/>
-    <text x="272" y="64" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="9.5" fill="#cbd5e1">折叠</text>
-
-    <!-- Checklist items inside Pin -->
-    <g transform="translate(26, 86)">
-      <rect width="298" height="34" rx="6" fill="#1e293b"/>
-      <circle cx="16" cy="17" r="7" fill="#10b981"/>
-      <text x="16" y="20" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="9" font-weight="700" fill="#090d16">✓</text>
-      <text x="32" y="21" font-family="ui-monospace, monospace" font-size="10.5" fill="#64748b" text-decoration="line-through">export SDKROOT=MacOSX26.5.sdk</text>
-      <rect x="246" y="7" width="44" height="20" rx="4" fill="#064e3b"/>
-      <text x="268" y="20" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="9.5" fill="#34d399">已粘贴</text>
+    <!-- 头部右侧 5 个操作按钮 -->
+    <g transform="translate(320, 9)">
+      <!-- 搜索按钮 -->
+      <circle cx="11" cy="11" r="11" fill="none"/>
+      <path d="M 7 7 L 13 13 M 12 8 A 4 4 0 1 1 8 12" stroke="#94a3b8" stroke-width="1.6" fill="none"/>
+      <!-- 截图 F1 按钮 -->
+      <g transform="translate(24, 0)">
+        <rect x="2" y="2" width="18" height="18" rx="3" fill="none" stroke="#94a3b8" stroke-width="1.4"/>
+        <circle cx="11" cy="11" r="2.5" fill="#94a3b8"/>
+      </g>
+      <!-- 贴图 F3 按钮 -->
+      <g transform="translate(48, 0)">
+        <rect x="2" y="3" width="18" height="15" rx="3" fill="none" stroke="#94a3b8" stroke-width="1.4"/>
+        <rect x="11" y="9" width="7" height="7" rx="1.5" fill="#94a3b8"/>
+      </g>
+      <!-- 窗口置顶按钮 (激活时为橙色) -->
+      <g transform="translate(72, 0)">
+        <path d="M 6 3 L 16 3 L 14 11 L 18 13 L 12 14 L 11 19 L 10 14 L 4 13 L 8 11 Z" fill="#f97316"/>
+      </g>
+      <!-- 设置齿轮按钮 -->
+      <g transform="translate(96, 0)">
+        <circle cx="11" cy="11" r="4" fill="none" stroke="#94a3b8" stroke-width="1.8"/>
+        <path d="M 11 2 L 11 5 M 11 17 L 11 20 M 2 11 L 5 11 M 17 11 L 20 11" stroke="#94a3b8" stroke-width="1.8"/>
+      </g>
     </g>
 
-    <g transform="translate(26, 128)">
-      <rect width="298" height="34" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="0.8"/>
-      <circle cx="16" cy="17" r="7" fill="#334155"/>
-      <text x="16" y="20" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9.5" fill="#cbd5e1">2</text>
-      <text x="32" y="21" font-family="ui-monospace, monospace" font-size="10.5" fill="#f1f5f9">swiftc -O -lsqlite3 Sources/*.swift</text>
-      <rect x="200" y="7" width="40" height="20" rx="4" fill="#334155"/>
-      <text x="220" y="20" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="9.5" fill="#e2e8f0">复制</text>
-      <rect x="246" y="7" width="44" height="20" rx="4" fill="#0284c7"/>
-      <text x="268" y="20" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="9.5" fill="#ffffff">粘贴</text>
+    <!-- 2. 分类选择器 (Segmented Picker: 短文本 / 长文本 / 图片 / 表格) -->
+    <rect x="14" y="42" width="422" height="26" rx="6" fill="#111318"/>
+    <rect x="16" y="44" width="102" height="22" rx="5" fill="#3b82f6"/>
+    <text x="67" y="59" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11.5" font-weight="600" fill="#ffffff">短文本</text>
+    <text x="172" y="59" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11.5" fill="#9ca3af">长文本</text>
+    <text x="277" y="59" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11.5" fill="#9ca3af">图片</text>
+    <text x="382" y="59" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11.5" fill="#9ca3af">表格</text>
+
+    <line x1="0" y1="78" x2="450" y2="78" stroke="#2d333f" stroke-width="1"/>
+
+    <!-- 3. 历史条目列表区 (HistoryListView) -->
+
+    <!-- 条目 1：开启了「按序粘贴」的多段条目 (ItemRowView isSequential = true) -->
+    <g transform="translate(14, 88)">
+      <rect width="422" height="96" rx="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+      <!-- sequentialHeader -->
+      <rect x="10" y="9" width="70" height="18" rx="9" fill="#3b82f6"/>
+      <text x="45" y="22" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" font-weight="700" fill="#ffffff">按序 2/4</text>
+      <text x="88" y="22" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">直接按 ⌘V 或点卡片依次粘贴</text>
+
+      <!-- 4 个微型控制按钮: 左、右、重置、退出 -->
+      <g transform="translate(330, 9)">
+        <circle cx="8" cy="9" r="8" fill="#111827"/>
+        <text x="8" y="12" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="8" fill="#94a3b8">◀</text>
+        <circle cx="28" cy="9" r="8" fill="#111827"/>
+        <text x="28" y="12" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="8" fill="#94a3b8">▶</text>
+        <circle cx="48" cy="9" r="8" fill="#111827"/>
+        <text x="48" y="12" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="8" fill="#94a3b8">↺</text>
+        <circle cx="68" cy="9" r="8" fill="#111827"/>
+        <text x="68" y="12" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="8" fill="#94a3b8">✕</text>
+      </g>
+
+      <!-- sequentialBody -->
+      <text x="10" y="47" font-family="-apple-system, sans-serif" font-size="11" font-weight="600" fill="#38bdf8">当前：</text>
+      <text x="45" y="47" font-family="ui-monospace, monospace" font-size="12" font-weight="500" fill="#f1f5f9">swift build -c release --disable-sandbox</text>
+      <text x="10" y="66" font-family="ui-monospace, monospace" font-size="11" fill="#64748b">下一段（3/4）：./Scripts/build.sh</text>
+
+      <!-- 底部时间与段落统计 -->
+      <text x="10" y="86" font-family="-apple-system, sans-serif" font-size="10" fill="#64748b">刚刚 · 共 4 段</text>
     </g>
 
-    <text x="26" y="182" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">• 原图模式支持 Live Text 鼠标直接划词复制</text>
-    <text x="26" y="202" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">• 文本贴图支持「原文 / 分段清单 / 便签编辑」切换</text>
+    <!-- 条目 2：普通文本条目（悬停展示操作按钮） -->
+    <g transform="translate(14, 192)">
+      <rect width="422" height="66" rx="8" fill="#252b36"/>
+      <text x="12" y="26" font-family="ui-monospace, monospace" font-size="12.5" fill="#e2e8f0">https://github.com/HunterLzap/Mac-paste.git</text>
+      <text x="12" y="52" font-family="-apple-system, sans-serif" font-size="10" fill="#64748b">3 分钟前</text>
 
-    <!-- Bottom Pin Controls Info -->
-    <rect x="16" y="234" width="318" height="90" rx="8" fill="#1e293b" stroke="#334155"/>
-    <text x="26" y="256" font-family="-apple-system, sans-serif" font-size="11.5" font-weight="700" fill="#f8fafc">⚡ 贴图交互手势与 CoreImage 增强</text>
-    <text x="26" y="276" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">• ⌘ + 滚轮：15%~100% 透明度 · 滚轮：无级等比缩放</text>
-    <text x="26" y="294" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">• 双击顶栏：折叠为迷你胶囊 · ⇧F3：一键显隐全部贴图</text>
-    <text x="26" y="312" font-family="-apple-system, sans-serif" font-size="10.5" fill="#fbbf24">• 深色底图自动反色 + 2× Lanczos 超分锐化 OCR</text>
+      <!-- 悬停按钮组: 贴图 F3、置顶、删除 -->
+      <g transform="translate(340, 20)">
+        <circle cx="10" cy="10" r="10" fill="#1c1f26"/>
+        <path d="M 6 5 L 14 5 L 14 11 L 11 11 L 11 15 L 9 15 L 9 11 L 6 11 Z" fill="#94a3b8"/>
+        <circle cx="34" cy="10" r="10" fill="#1c1f26"/>
+        <path d="M 31 5 L 37 5 L 36 9 L 39 10 L 35 11 L 34 14 L 33 11 L 29 10 L 32 9 Z" fill="#94a3b8"/>
+        <circle cx="58" cy="10" r="10" fill="#1c1f26"/>
+        <path d="M 54 6 L 62 6 M 55 8 L 61 8 L 60 14 L 56 14 Z" stroke="#ef4444" stroke-width="1.2" fill="none"/>
+      </g>
+    </g>
+
+    <!-- 条目 3：多段文本条目（未激活按序状态，显示「按序粘贴」胶囊按钮） -->
+    <g transform="translate(14, 266)">
+      <rect width="422" height="74" rx="8" fill="#222731"/>
+      <text x="12" y="24" font-family="ui-monospace, monospace" font-size="12" fill="#cbd5e1">const APP_ENV = 'production';</text>
+      <text x="12" y="40" font-family="ui-monospace, monospace" font-size="11" fill="#64748b">DATABASE_URL=sqlite:///data/prod.db</text>
+      <text x="12" y="62" font-family="-apple-system, sans-serif" font-size="10" fill="#64748b">12 分钟前 · 共 3 段</text>
+      <rect x="100" y="51" width="62" height="16" rx="8" fill="#1e3a8a"/>
+      <text x="131" y="63" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="9.5" font-weight="600" fill="#60a5fa">按序粘贴</text>
+    </g>
+
+    <!-- 条目 4：置顶文本条目（右上角带橙色 pin） -->
+    <g transform="translate(14, 348)">
+      <rect width="422" height="58" rx="8" fill="#222731"/>
+      <path d="M 406 8 L 414 8 L 413 13 L 416 14 L 412 15 L 411 19 L 410 15 L 406 14 L 409 13 Z" fill="#f97316"/>
+      <text x="12" y="24" font-family="ui-monospace, monospace" font-size="12" fill="#f8fafc">npm install &amp;&amp; npm run build:release</text>
+      <text x="12" y="46" font-family="-apple-system, sans-serif" font-size="10" fill="#64748b">1 小时前</text>
+    </g>
+
+    <!-- 条目 5：表格条目卡片 (折叠状态 TableCardView) -->
+    <g transform="translate(14, 414)">
+      <rect width="422" height="88" rx="8" fill="#222731"/>
+      <text x="12" y="20" font-family="-apple-system, sans-serif" font-size="11.5" font-weight="600" fill="#e2e8f0">📊 12 行 × 4 列</text>
+      <text x="360" y="20" font-family="-apple-system, sans-serif" font-size="10" fill="#64748b">2 小时前</text>
+      <text x="404" y="20" font-family="-apple-system, sans-serif" font-size="9" fill="#94a3b8">▼</text>
+      <!-- 2行6列微型预览 -->
+      <rect x="12" y="28" width="398" height="38" rx="4" fill="#181c24" stroke="#2d333f"/>
+      <line x1="12" y1="47" x2="410" y2="47" stroke="#2d333f"/>
+      <text x="20" y="41" font-family="ui-monospace, monospace" font-size="9.5" fill="#94a3b8">ID</text>
+      <text x="75" y="41" font-family="ui-monospace, monospace" font-size="9.5" fill="#94a3b8">Module</text>
+      <text x="160" y="41" font-family="ui-monospace, monospace" font-size="9.5" fill="#94a3b8">Latency</text>
+      <text x="250" y="41" font-family="ui-monospace, monospace" font-size="9.5" fill="#94a3b8">Status</text>
+      <text x="20" y="60" font-family="ui-monospace, monospace" font-size="9.5" fill="#e2e8f0">101</text>
+      <text x="75" y="60" font-family="ui-monospace, monospace" font-size="9.5" fill="#e2e8f0">VisionMatch</text>
+      <text x="160" y="60" font-family="ui-monospace, monospace" font-size="9.5" fill="#34d399">2.4ms</text>
+      <text x="250" y="60" font-family="ui-monospace, monospace" font-size="9.5" fill="#38bdf8">OK</text>
+      <text x="12" y="80" font-family="-apple-system, sans-serif" font-size="9.5" fill="#64748b">… 共 12 行 (点击展开交互网格)</text>
+    </g>
+
+    <!-- 4. 底部栏 (Bottom Bar) -->
+    <line x1="0" y1="548" x2="450" y2="548" stroke="#2d333f" stroke-width="1"/>
+    <text x="14" y="571" font-family="-apple-system, sans-serif" font-size="11" fill="#64748b">共 24 条</text>
+    <text x="436" y="571" text-anchor="end" font-family="-apple-system, sans-serif" font-size="11" fill="#ef4444" opacity="0.85">清空历史</text>
+  </g>
+
+
+  <!-- ======================== 右侧上方：屏幕活贴图窗口 (PinContentView 真实 UI) ======================== -->
+  <g transform="translate(545, 60)" filter="url(#subDropShadow)">
+    <rect width="610" height="265" rx="10" fill="#181b22" stroke="#38bdf8" stroke-width="1.2"/>
+
+    <!-- 顶部控制栏 (高度 34pt) -->
+    <rect width="610" height="34" rx="10" fill="#1f242d"/>
+    <!-- 图钉图标 -->
+    <path d="M 12 11 L 18 11 L 17 17 L 20 18 L 16 19 L 15 24 L 14 19 L 10 18 L 13 17 Z" fill="#f97316"/>
+    <text x="26" y="22" font-family="-apple-system, sans-serif" font-size="11" font-weight="600" fill="#cbd5e1">分段清单 · 共 3 段</text>
+
+    <!-- 模式切换与控制按钮 -->
+    <g transform="translate(300, 7)">
+      <!-- 原文/分段切换按钮 -->
+      <rect x="0" y="0" width="46" height="20" rx="10" fill="#334155"/>
+      <text x="23" y="14" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" fill="#cbd5e1">原文</text>
+
+      <!-- 编辑便签按钮 -->
+      <rect x="52" y="0" width="46" height="20" rx="10" fill="#334155"/>
+      <text x="75" y="14" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" fill="#cbd5e1">✏ 编辑</text>
+
+      <!-- 透明度按钮 -->
+      <rect x="104" y="0" width="56" height="20" rx="10" fill="#334155"/>
+      <text x="132" y="14" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#cbd5e1">◐ 85%</text>
+
+      <!-- 复制全部 -->
+      <rect x="166" y="0" width="22" height="20" rx="4" fill="none"/>
+      <path d="M 172 6 L 180 6 L 180 14 L 172 14 Z M 170 8 L 170 16 L 178 16" stroke="#94a3b8" stroke-width="1.2" fill="none"/>
+
+      <!-- 折叠/展开 -->
+      <text x="200" y="14" font-family="-apple-system, sans-serif" font-size="10" fill="#94a3b8">▲</text>
+
+      <!-- 关闭按钮 -->
+      <text x="216" y="14" font-family="-apple-system, sans-serif" font-size="11" font-weight="600" fill="#94a3b8">✕</text>
+    </g>
+
+    <!-- 贴图内容体：分段交互列表 (segmentsListView) -->
+    <!-- 第 1 段：已打勾完成状态 (带删除线，绿色徽章) -->
+    <g transform="translate(12, 46)">
+      <rect width="586" height="42" rx="7" fill="#111827" stroke="#334155" stroke-width="0.8"/>
+      <circle cx="20" cy="21" r="8" fill="#10b981"/>
+      <path d="M 17 21 L 19 23 L 23 18" stroke="#111827" stroke-width="1.8" fill="none"/>
+      <text x="36" y="25" font-family="ui-monospace, monospace" font-size="11.5" fill="#64748b" text-decoration="line-through">git remote add origin https://github.com/HunterLzap/Mac-paste.git</text>
+      <!-- 右侧独立粘贴成功反馈 -->
+      <rect x="526" y="10" width="48" height="22" rx="5" fill="#064e3b"/>
+      <text x="550" y="24" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" font-weight="600" fill="#34d399">已粘贴</text>
+    </g>
+
+    <!-- 第 2 段：当前待处理段落 (带独立复制、粘贴按钮) -->
+    <g transform="translate(12, 94)">
+      <rect width="586" height="42" rx="7" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+      <circle cx="20" cy="21" r="8" fill="#334155"/>
+      <text x="20" y="25" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#ffffff">2</text>
+      <text x="36" y="25" font-family="ui-monospace, monospace" font-size="11.5" fill="#f8fafc">git add . &amp;&amp; git commit -m "feat: release v2.1"</text>
+      <!-- 独立复制按钮 -->
+      <rect x="472" y="10" width="46" height="22" rx="5" fill="#334155"/>
+      <text x="495" y="24" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" fill="#e2e8f0">复制</text>
+      <!-- 独立粘贴按钮 -->
+      <rect x="526" y="10" width="48" height="22" rx="5" fill="#0284c7"/>
+      <text x="550" y="24" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" font-weight="600" fill="#ffffff">粘贴</text>
+    </g>
+
+    <!-- 第 3 段 -->
+    <g transform="translate(12, 142)">
+      <rect width="586" height="42" rx="7" fill="#181b22" stroke="#262c36" stroke-width="0.8"/>
+      <circle cx="20" cy="21" r="8" fill="#2d333f"/>
+      <text x="20" y="25" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#94a3b8">3</text>
+      <text x="36" y="25" font-family="ui-monospace, monospace" font-size="11.5" fill="#cbd5e1">git push -u origin main</text>
+      <rect x="472" y="10" width="46" height="22" rx="5" fill="#2d333f"/>
+      <text x="495" y="24" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" fill="#94a3b8">复制</text>
+      <rect x="526" y="10" width="48" height="22" rx="5" fill="#1e3a8a"/>
+      <text x="550" y="24" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" fill="#60a5fa">粘贴</text>
+    </g>
+
+    <!-- 底部操作提示文案 (基于 PinPanel 真实交互手势) -->
+    <rect x="12" y="196" width="586" height="56" rx="6" fill="#111318"/>
+    <text x="22" y="217" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">• ⌘ + 滚轮：15% ~ 100% 调节贴图透明度 · 滚轮或拖拽右下角：无级缩放</text>
+    <text x="22" y="238" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">• 双击顶栏：折叠为迷你胶囊 · 图片贴图支持 Apple Live Text 直接划词复制与离线 OCR</text>
+  </g>
+
+
+  <!-- ======================== 右侧下方：滚动长截图与悬浮工具栏真实结构 ======================== -->
+  <g transform="translate(545, 345)" filter="url(#subDropShadow)">
+    <rect width="610" height="305" rx="10" fill="#11141c" stroke="#334155" stroke-width="1"/>
+
+    <!-- 顶部小标 -->
+    <text x="18" y="28" font-family="-apple-system, sans-serif" font-size="12" font-weight="700" fill="#38bdf8">滚动长截图工作状态（选区中间镂空直通底层 · Vision 亚像素动态拼合）</text>
+
+    <!-- 模拟镂空选区框架 -->
+    <rect x="18" y="44" width="410" height="195" rx="4" fill="#090d16" stroke="#06b6d4" stroke-width="2.5"/>
+    <text x="28" y="70" font-family="ui-monospace, monospace" font-size="11" fill="#22d3ee">1280 × 3840 px · 镂空无遮挡视区</text>
+    <text x="28" y="92" font-family="-apple-system, sans-serif" font-size="10.5" fill="#64748b">此时鼠标滚轮与触控板事件 100% 直达底层网页或文档，无需担心窗口截流</text>
+
+    <!-- 实际代码中右侧的实时缩略图浮窗 (ScrollPreviewCardWindow: 130×190) -->
+    <g transform="translate(445, 44)">
+      <rect width="145" height="195" rx="8" fill="#1a1f29" stroke="#475569" stroke-width="1"/>
+      <text x="72" y="22" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" font-weight="600" fill="#38bdf8">右侧实时长图预览</text>
+      <!-- 预览长图卡片 -->
+      <rect x="22" y="32" width="100" height="145" rx="3" fill="#0b0e14" stroke="#0ea5e9"/>
+      <line x1="30" y1="50" x2="110" y2="50" stroke="#334155" stroke-width="3"/>
+      <line x1="30" y1="68" x2="95" y2="68" stroke="#334155" stroke-width="3"/>
+      <line x1="30" y1="86" x2="114" y2="86" stroke="#0ea5e9" stroke-width="3"/>
+      <line x1="30" y1="104" x2="90" y2="104" stroke="#0ea5e9" stroke-width="3"/>
+      <line x1="30" y1="122" x2="114" y2="122" stroke="#34d399" stroke-width="3"/>
+      <line x1="30" y1="140" x2="100" y2="140" stroke="#34d399" stroke-width="3"/>
+      <text x="72" y="190" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="#94a3b8">回滚不重复</text>
+    </g>
+
+    <!-- 实际代码中 34pt 悬浮工具条 (ScrollToolbarView: 宽276 高34) -->
+    <g transform="translate(18, 252)">
+      <rect width="276" height="34" rx="8" fill="#171c26" stroke="#475569" stroke-width="1"/>
+      <!-- 1. 尺寸文本 -->
+      <text x="50" y="21" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" font-weight="600" fill="#ffffff">1280 × 3840</text>
+      <!-- 分隔线 -->
+      <line x1="96" y1="7" x2="96" y2="27" stroke="#334155" stroke-width="1"/>
+      <!-- 2. 自动滚动按钮 -->
+      <rect x="102" y="4" width="52" height="26" rx="5" fill="#0891b2" opacity="0.3"/>
+      <text x="128" y="21" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10.5" font-weight="700" fill="#22d3ee">▶ 自动</text>
+      <!-- 3. 贴图 F3 -->
+      <g transform="translate(162, 5)">
+        <path d="M 4 2 L 10 2 L 9 8 L 12 9 L 8 10 L 7 15 L 6 10 L 2 9 L 5 8 Z" fill="#ffffff"/>
+      </g>
+      <!-- 4. 保存为图片 -->
+      <g transform="translate(189, 5)">
+        <path d="M 4 2 L 12 2 L 12 10 L 4 10 Z M 8 10 L 8 14 M 6 12 L 8 14 L 10 12" stroke="#ffffff" stroke-width="1.2" fill="none"/>
+      </g>
+      <!-- 5. 取消 Esc -->
+      <text x="224" y="21" font-family="-apple-system, sans-serif" font-size="12" font-weight="700" fill="#ef4444">✕</text>
+      <!-- 6. 完成 Enter -->
+      <text x="250" y="21" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#22c55e">✓</text>
+    </g>
+
+    <text x="310" y="274" font-family="-apple-system, sans-serif" font-size="10.5" fill="#94a3b8">按空格键自动平滑滚动 · Enter 完成复制 · Esc 取消</text>
   </g>
 </svg>
