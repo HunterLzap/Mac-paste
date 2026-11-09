@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 270" width="1080" height="270">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+
+  <rect width="1080" height="270" rx="14" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+
+  <!-- Node 1: Input Sources -->
+  <g transform="translate(26, 36)">
+    <rect width="215" height="198" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="107" y="28" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#38bdf8">输入源与全局热键</text>
+    <line x1="16" y1="40" x2="199" y2="40" stroke="#334155"/>
+    <text x="18" y="64" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• NSPasteboard (0.5s 轮询)</text>
+    <text x="18" y="90" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• F1 区域/窗口交互截图</text>
+    <text x="18" y="116" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• 滚动长截图 (Vision 配准)</text>
+    <text x="18" y="142" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• F3 / ⇧F3 屏幕活贴图</text>
+    <text x="18" y="168" font-family="-apple-system, sans-serif" font-size="11.5" fill="#94a3b8">• 分布式通知 CLI 接口</text>
+  </g>
+
+  <line x1="241" y1="135" x2="288" y2="135" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Node 2: Classification & Deduplication -->
+  <g transform="translate(294, 36)">
+    <rect width="235" height="198" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="117" y="28" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#34d399">解析、指纹与去重引擎</text>
+    <line x1="16" y1="40" x2="219" y2="40" stroke="#334155"/>
+    <text x="18" y="64" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• 文本自动分段 (&gt;100字长文本)</text>
+    <text x="18" y="90" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• HTML &lt;table&gt; + TSV 启发式</text>
+    <text x="18" y="116" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• 32×32 sRGB 像素 SHA-256</text>
+    <text x="18" y="142" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• PNG 魔数直通 + 256px 缩略图</text>
+    <text x="18" y="168" font-family="-apple-system, sans-serif" font-size="11.5" fill="#94a3b8">• 内部回写标记防循环入库</text>
+  </g>
+
+  <line x1="529" y1="135" x2="576" y2="135" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Node 3: Local Storage -->
+  <g transform="translate(582, 36)">
+    <rect width="205" height="198" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="102" y="28" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#fbbf24">本地持久化存储</text>
+    <line x1="16" y1="40" x2="189" y2="40" stroke="#334155"/>
+    <text x="18" y="64" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• SQLite3 WAL 直连</text>
+    <text x="18" y="90" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• 120ms 防抖全文检索</text>
+    <text x="18" y="116" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• 置顶保护与自动上限淘汰</text>
+    <text x="18" y="142" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• NSCache 分级缩略图缓存</text>
+    <text x="18" y="168" font-family="-apple-system, sans-serif" font-size="11.5" fill="#94a3b8">• 100% 离线零网络请求</text>
+  </g>
+
+  <line x1="787" y1="135" x2="834" y2="135" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Node 4: Output & Injection -->
+  <g transform="translate(840, 36)">
+    <rect width="214" height="198" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="107" y="28" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#f472b6">输出回填与贴图交互</text>
+    <line x1="16" y1="40" x2="198" y2="40" stroke="#334155"/>
+    <text x="18" y="64" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• CGEvent 合成 ⌘V 直粘</text>
+    <text x="18" y="90" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• CmdVMonitor 按序预装推进</text>
+    <text x="18" y="116" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• TSV + HTML 双格式写回</text>
+    <text x="18" y="142" font-family="-apple-system, sans-serif" font-size="11.5" fill="#e2e8f0">• Live Text + 离线 OCR 提取</text>
+    <text x="18" y="168" font-family="-apple-system, sans-serif" font-size="11.5" fill="#94a3b8">• QuickLook 高清原图预览</text>
+  </g>
+</svg>
