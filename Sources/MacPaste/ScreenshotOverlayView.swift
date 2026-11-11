@@ -6,6 +6,45 @@ import CoreGraphics
 final class ScreenshotOverlayWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown,
+           event.clickCount == 1,
+           let canvas = contentView as? ScreenshotCanvasView,
+           canvas.isPointInActiveTextField(windowPoint: event.locationInWindow) {
+            let startScreen = NSEvent.mouseLocation
+            var didDrag = false
+            while let next = nextEvent(
+                matching: [.leftMouseDragged, .leftMouseUp],
+                until: .distantFuture,
+                inMode: .eventTracking,
+                dequeue: true
+            ) {
+                if next.type == .leftMouseDragged {
+                    let curScreen = NSEvent.mouseLocation
+                    let dx = curScreen.x - startScreen.x
+                    let dy = startScreen.y - curScreen.y // flipped view: screen +y is view -y
+                    if !didDrag && hypot(dx, dy) >= 3.0 {
+                        didDrag = true
+                        canvas.beginActiveTextFieldDrag()
+                    }
+                    if didDrag {
+                        canvas.updateActiveTextFieldDrag(dx: dx, dy: dy)
+                    }
+                } else if next.type == .leftMouseUp {
+                    if !didDrag {
+                        super.sendEvent(event)
+                        super.sendEvent(next)
+                    } else {
+                        canvas.endActiveTextFieldDrag()
+                    }
+                    break
+                }
+            }
+            return
+        }
+        super.sendEvent(event)
+    }
 }
 
 // MARK: - 全屏截图画布视图（isFlipped = true，左上角为原点）
@@ -30,8 +69,14 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
     private var selectedColorIndex: Int = 0
     private var selectedWidthIndex: Int = 1
     private var annotations: [ScreenshotAnnotation] = []
-    private var redoStack: [ScreenshotAnnotation] = []
+    private var undoStack: [[ScreenshotAnnotation]] = []
+    private var redoStack: [[ScreenshotAnnotation]] = []
     private var currentAnnotation: ScreenshotAnnotation?
+
+    // 已放置标注的选中与悬停状态（支持拖拽移动位置、调整端点/四角、双击重编辑文字、修改颜色粗细与删除）
+    private var selectedAnnotationId: UUID?
+    private var hoveredAnnotationId: UUID?
+    private var hoveredAnnotationHandle: AnnotationHandle?
 
     private enum DragMode {
         case none
@@ -39,6 +84,8 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
         case resizingSelection(handle: ResizeHandle, initialRect: CGRect)
         case movingSelection(startMouse: CGPoint, initialRect: CGRect)
         case drawingAnnotation
+        case movingAnnotation(id: UUID, startMouse: CGPoint, initialAnnotation: ScreenshotAnnotation, preMoveSnapshot: [ScreenshotAnnotation])
+        case resizingAnnotation(id: UUID, handle: AnnotationHandle, initialAnnotation: ScreenshotAnnotation, preResizeSnapshot: [ScreenshotAnnotation])
     }
 
     private var dragMode: DragMode = .none
@@ -60,6 +107,9 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
     // 文字标注内联输入框
     private var textInputField: NSTextField?
     private var textInputOrigin: CGPoint = .zero
+    private var textFieldDragStartOrigin: CGPoint = .zero
+    private var editingTextAnnotation: ScreenshotAnnotation?
+    private var preEditTextSnapshot: [ScreenshotAnnotation]?
 
     init(frame: NSRect, sampler: ScreenBitmapSampler, hasScreenPermission: Bool) {
         self.sampler = sampler
@@ -133,6 +183,7 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
             if let current = currentAnnotation {
                 ScreenshotRenderer.drawAnnotation(current, sampler: sampler)
             }
+            drawAnnotationSelectionFeedback()
             NSGraphicsContext.restoreGraphicsState()
 
             drawSelectionFrameAndHandles(sel)
@@ -169,7 +220,7 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
         switch dragMode {
         case .creatingSelection, .resizingSelection:
             return true
-        case .movingSelection, .drawingAnnotation:
+        case .movingSelection, .drawingAnnotation, .movingAnnotation, .resizingAnnotation:
             return false
         case .none:
             return hoveredHandle != nil
@@ -476,6 +527,120 @@ extension ScreenshotCanvasView {
         outerPath.lineWidth = 1.8
         outerPath.stroke()
     }
+
+    /// 绘制已放置标注的悬停提示框与选中态控制点（支持直观拖拽移动、调大小与修改样式）
+    func drawAnnotationSelectionFeedback() {
+        // 1. 若有鼠标悬停标注且未选中它，画一条轻量虚线框提示用户该标注可点选拖拽
+        if let hovId = hoveredAnnotationId,
+           hovId != selectedAnnotationId,
+           let ann = annotations.first(where: { $0.id == hovId }) {
+            let rect = ann.boundingRect.insetBy(dx: -3, dy: -3)
+            let hoverPath = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
+            NSColor.white.withAlphaComponent(0.45).setStroke()
+            hoverPath.lineWidth = 1.0
+            hoverPath.setLineDash([4, 3], count: 2, phase: 0)
+            hoverPath.stroke()
+        }
+
+        // 2. 绘制选中标注的边框与端点控制点
+        guard let selId = selectedAnnotationId,
+              let ann = annotations.first(where: { $0.id == selId }) else { return }
+
+        let accent = ScreenshotPalette.themeAccent
+        let boundsRect = ann.boundingRect.insetBy(dx: -4, dy: -4)
+
+        // 选中外框（青蓝高亮虚线框）
+        let boxPath = NSBezierPath(roundedRect: boundsRect, xRadius: 5, yRadius: 5)
+        accent.withAlphaComponent(0.85).setStroke()
+        boxPath.lineWidth = 1.5
+        boxPath.setLineDash([5, 3], count: 2, phase: 0)
+        boxPath.stroke()
+
+        // 绘制该标注的形状调整控制点（针对箭头端点、矩形/圆框/画笔/荧光笔/文字四角与四边缘）
+        for item in ann.resizeHandles {
+            let isHov = (hoveredAnnotationHandle == item.handle)
+            let size: CGFloat = isHov ? 10.0 : 8.0
+            let hRect = CGRect(x: item.point.x - size / 2, y: item.point.y - size / 2, width: size, height: size)
+            let hPath = NSBezierPath(roundedRect: hRect, xRadius: 2.0, yRadius: 2.0)
+            if isHov {
+                accent.setFill()
+                hPath.fill()
+                NSColor.white.setStroke()
+            } else {
+                NSColor.white.setFill()
+                hPath.fill()
+                accent.setStroke()
+            }
+            hPath.lineWidth = 1.8
+            hPath.stroke()
+        }
+    }
+
+    // MARK: - 实时文字输入框拖拽与尺寸自适应
+
+    func isPointInActiveTextField(windowPoint: NSPoint) -> Bool {
+        guard let tf = textInputField else { return false }
+        let pt = convert(windowPoint, from: nil)
+        return tf.frame.insetBy(dx: -6, dy: -4).contains(pt)
+    }
+
+    func beginActiveTextFieldDrag() {
+        textFieldDragStartOrigin = textInputOrigin
+    }
+
+    func updateActiveTextFieldDrag(dx: CGFloat, dy: CGFloat) {
+        guard let tf = textInputField else { return }
+        var newX = textFieldDragStartOrigin.x + dx
+        var newY = textFieldDragStartOrigin.y + dy
+        if let sel = selectionRect {
+            newX = min(max(newX, sel.minX), sel.maxX - 40)
+            newY = min(max(newY, sel.minY), sel.maxY - 20)
+        }
+        textInputOrigin = CGPoint(x: newX, y: newY)
+        tf.frame.origin = CGPoint(x: newX, y: newY - 4)
+        needsDisplay = true
+    }
+
+    func endActiveTextFieldDrag() {
+        needsDisplay = true
+    }
+
+    func resizeActiveTextFieldToFit() {
+        guard let tf = textInputField else { return }
+        let str = tf.stringValue.isEmpty ? "输入批注文字 (回车确认)..." : tf.stringValue
+        let font = tf.font ?? NSFont.systemFont(ofSize: 15, weight: .semibold)
+        let textSize = (str as NSString).size(withAttributes: [.font: font])
+        let w = max(textSize.width + 28, 160)
+        let h = max(textSize.height + 12, 28)
+        tf.frame = CGRect(x: textInputOrigin.x, y: textInputOrigin.y - 4, width: w, height: h)
+    }
+
+    func controlTextDidChange(_ obj: Notification) {
+        resizeActiveTextFieldToFit()
+    }
+
+    func recordUndoSnapshot() {
+        undoStack.append(annotations)
+        if undoStack.count > 50 {
+            undoStack.removeFirst()
+        }
+        redoStack.removeAll()
+    }
+
+    private func syncPaletteToAnnotation(_ ann: ScreenshotAnnotation) {
+        if let cIdx = ScreenshotPalette.colors.firstIndex(where: {
+            guard let c1 = $0.color.usingColorSpace(.deviceRGB),
+                  let c2 = ann.color.usingColorSpace(.deviceRGB) else { return false }
+            return abs(c1.redComponent - c2.redComponent) < 0.05 &&
+                   abs(c1.greenComponent - c2.greenComponent) < 0.05 &&
+                   abs(c1.blueComponent - c2.blueComponent) < 0.05
+        }) {
+            selectedColorIndex = cIdx
+        }
+        if let wIdx = ScreenshotPalette.strokeWidths.firstIndex(where: { abs($0.width - ann.lineWidth) < 0.5 }) {
+            selectedWidthIndex = wIdx
+        }
+    }
 }
 
 // MARK: - 选区浮动工具栏与鼠标/键盘事件处理
@@ -485,7 +650,8 @@ extension ScreenshotCanvasView {
         let mainBarW: CGFloat = 480
         let mainBarH: CGFloat = 36
         let styleBarH: CGFloat = 32
-        let totalH: CGFloat = activeTool != nil ? (mainBarH + styleBarH + 6) : mainBarH
+        let showStyleBar = (activeTool != nil || selectedAnnotationId != nil || textInputField != nil)
+        let totalH: CGFloat = showStyleBar ? (mainBarH + styleBarH + 6) : mainBarH
 
         var barX = sel.maxX - mainBarW
         barX = min(max(barX, 12), bounds.width - mainBarW - 12)
@@ -550,7 +716,7 @@ extension ScreenshotCanvasView {
             tooltip: "撤销",
             isSelected: false,
             accentColor: ScreenshotPalette.themeAccent,
-            isEnabled: !annotations.isEmpty
+            isEnabled: !undoStack.isEmpty || !annotations.isEmpty
         ) { [weak self] in
             self?.performUndo()
         }
@@ -582,8 +748,11 @@ extension ScreenshotCanvasView {
         ) { [weak self] in
             guard let self, !self.annotations.isEmpty else { return }
             self.commitPendingTextIfNeeded()
-            self.redoStack = self.annotations
+            self.recordUndoSnapshot()
             self.annotations.removeAll()
+            self.selectedAnnotationId = nil
+            self.hoveredAnnotationId = nil
+            self.hoveredAnnotationHandle = nil
             self.needsDisplay = true
         }
         cursorX += btnW + 2
@@ -677,23 +846,46 @@ extension ScreenshotCanvasView {
             self?.finishCapture(mode: .copyToClipboard)
         }
 
-        // 4. 二级样式栏（当任意标注工具激活时展开：粗细圆点 + 8色圆点）
-        if activeTool != nil {
-            let styleBarW: CGFloat = 340
-            let styleX = min(max(mainRect.minX, 12), bounds.width - styleBarW - 12)
+        // 4. 二级样式栏（当任意标注工具激活或选中已有标注时展开：粗细圆点 + 8色圆点；马赛克模式下仅显示大小不显示颜色）
+        if showStyleBar {
+            let isMosaicActive: Bool = {
+                if activeTool == .mosaic { return true }
+                if let selId = selectedAnnotationId,
+                   let ann = annotations.first(where: { $0.id == selId }),
+                   ann.tool == .mosaic {
+                    return true
+                }
+                return false
+            }()
+
+            let styleBarW: CGFloat = isMosaicActive ? 104 : 340
+            let styleX: CGFloat = {
+                if isMosaicActive {
+                    // 马赛克模式下居中对齐在工具栏马赛克按钮下方，体验更直观
+                    let mosaicBtnCenterX = mainRect.minX + 6 + 5 * 28 + 13 // 第6个按钮(索引5)中心
+                    let mx = mosaicBtnCenterX - styleBarW / 2
+                    return min(max(mx, 12), bounds.width - styleBarW - 12)
+                } else {
+                    return min(max(mainRect.minX, 12), bounds.width - styleBarW - 12)
+                }
+            }()
             let styleY = mainRect.maxY + 6
             let styleRect = CGRect(x: styleX, y: styleY, width: styleBarW, height: styleBarH)
             let styleBg = NSBezierPath(roundedRect: styleRect, xRadius: 7, yRadius: 7)
             NSColor(calibratedRed: 0.08, green: 0.11, blue: 0.17, alpha: 0.95).setFill()
             styleBg.fill()
-            ScreenshotPalette.colors[selectedColorIndex].color.withAlphaComponent(0.7).setStroke()
+
+            let borderColor = isMosaicActive
+                ? ScreenshotPalette.themeAccent.withAlphaComponent(0.65)
+                : ScreenshotPalette.colors[selectedColorIndex].color.withAlphaComponent(0.7)
+            borderColor.setStroke()
             styleBg.lineWidth = 1.2
             styleBg.stroke()
 
             var sx = styleRect.minX + 8
             let sy = styleRect.minY + 4
 
-            // 线宽选择（绘制细/中/粗实心圆点）
+            // 线宽/马赛克大小选择（绘制细/中/粗实心圆点）
             let dotSizes: [CGFloat] = [4, 7, 10]
             for (idx, item) in ScreenshotPalette.strokeWidths.enumerated() {
                 let wRect = CGRect(x: sx, y: sy, width: 24, height: 24)
@@ -721,39 +913,67 @@ extension ScreenshotCanvasView {
                 (isSel ? ScreenshotPalette.themeAccent : NSColor.white).setFill()
                 NSBezierPath(ovalIn: dotRect).fill()
 
-                toolbarHits.append(ToolbarHitItem(id: "width_\(idx)", rect: wRect, tooltip: "画笔粗细: \(item.label)") { [weak self] in
-                    self?.selectedWidthIndex = idx
-                    self?.needsDisplay = true
+                let tipText = isMosaicActive ? "马赛克大小: \(item.label)" : "画笔粗细: \(item.label)"
+                toolbarHits.append(ToolbarHitItem(id: "width_\(idx)", rect: wRect, tooltip: tipText) { [weak self] in
+                    guard let self else { return }
+                    self.selectedWidthIndex = idx
+                    let newWidth = ScreenshotPalette.strokeWidths[idx].width
+                    if let selId = self.selectedAnnotationId,
+                       let annIdx = self.annotations.firstIndex(where: { $0.id == selId }),
+                       self.annotations[annIdx].lineWidth != newWidth {
+                        self.recordUndoSnapshot()
+                        self.annotations[annIdx].lineWidth = newWidth
+                        self.annotations[annIdx].customFontSize = nil
+                    }
+                    if let tf = self.textInputField {
+                        let fontSize = ScreenshotRenderer.textFontSize(for: newWidth)
+                        tf.font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+                        self.resizeActiveTextFieldToFit()
+                    }
+                    self.needsDisplay = true
                 })
                 sx += 28
             }
 
-            drawToolbarDivider(at: sx + 2, minY: styleRect.minY + 5, height: 22)
-            sx += 10
+            // 非马赛克模式下才显示分割线与 8 色调色盘圆点
+            if !isMosaicActive {
+                drawToolbarDivider(at: sx + 2, minY: styleRect.minY + 5, height: 22)
+                sx += 10
 
-            // 8 色调色盘圆点
-            for (idx, item) in ScreenshotPalette.colors.enumerated() {
-                let cRect = CGRect(x: sx, y: styleRect.minY + 6, width: 20, height: 20)
-                let circle = NSBezierPath(ovalIn: cRect.insetBy(dx: 2, dy: 2))
-                item.color.setFill()
-                circle.fill()
+                // 8 色调色盘圆点
+                for (idx, item) in ScreenshotPalette.colors.enumerated() {
+                    let cRect = CGRect(x: sx, y: styleRect.minY + 6, width: 20, height: 20)
+                    let circle = NSBezierPath(ovalIn: cRect.insetBy(dx: 2, dy: 2))
+                    item.color.setFill()
+                    circle.fill()
 
-                if selectedColorIndex == idx {
-                    NSColor.white.setStroke()
-                    let ring = NSBezierPath(ovalIn: cRect)
-                    ring.lineWidth = 2.2
-                    ring.stroke()
-                } else {
-                    NSColor.white.withAlphaComponent(0.35).setStroke()
-                    circle.lineWidth = 1.0
-                    circle.stroke()
+                    if selectedColorIndex == idx {
+                        NSColor.white.setStroke()
+                        let ring = NSBezierPath(ovalIn: cRect)
+                        ring.lineWidth = 2.2
+                        ring.stroke()
+                    } else {
+                        NSColor.white.withAlphaComponent(0.35).setStroke()
+                        circle.lineWidth = 1.0
+                        circle.stroke()
+                    }
+
+                    toolbarHits.append(ToolbarHitItem(id: "color_\(idx)", rect: cRect, tooltip: "颜色: \(item.name)") { [weak self] in
+                        guard let self else { return }
+                        self.selectedColorIndex = idx
+                        let newColor = ScreenshotPalette.colors[idx].color
+                        if let selId = self.selectedAnnotationId,
+                           let annIdx = self.annotations.firstIndex(where: { $0.id == selId }) {
+                            self.recordUndoSnapshot()
+                            self.annotations[annIdx].color = newColor
+                        }
+                        if let tf = self.textInputField {
+                            tf.textColor = newColor
+                        }
+                        self.needsDisplay = true
+                    })
+                    sx += 24
                 }
-
-                toolbarHits.append(ToolbarHitItem(id: "color_\(idx)", rect: cRect, tooltip: "颜色: \(item.name)") { [weak self] in
-                    self?.selectedColorIndex = idx
-                    self?.needsDisplay = true
-                })
-                sx += 24
             }
         }
 
@@ -881,16 +1101,36 @@ extension ScreenshotCanvasView {
 
         let prevHandle = hoveredHandle
         let prevToolbar = hoveredToolbarId
+        let prevAnnId = hoveredAnnotationId
+        let prevAnnHandle = hoveredAnnotationHandle
 
         hoveredToolbarId = toolbarHits.first(where: { $0.rect.contains(pt) })?.id
         if hoveredToolbarId != nil {
             hoveredHandle = nil
+            hoveredAnnotationId = nil
+            hoveredAnnotationHandle = nil
             NSCursor.pointingHand.set()
         } else if let h = handleAt(pt) {
             hoveredHandle = h
+            hoveredAnnotationId = nil
+            hoveredAnnotationHandle = nil
             NSCursor.crosshair.set()
+        } else if let selId = selectedAnnotationId,
+                  let ann = annotations.first(where: { $0.id == selId }),
+                  let aHandle = ann.hitResizeHandle(at: pt) {
+            hoveredHandle = nil
+            hoveredAnnotationId = selId
+            hoveredAnnotationHandle = aHandle
+            NSCursor.crosshair.set()
+        } else if let hitAnn = annotations.reversed().first(where: { $0.hitTest(pt, isSelected: $0.id == selectedAnnotationId) }) {
+            hoveredHandle = nil
+            hoveredAnnotationId = hitAnn.id
+            hoveredAnnotationHandle = nil
+            NSCursor.openHand.set()
         } else if let sel = selectionRect, sel.contains(pt) {
             hoveredHandle = nil
+            hoveredAnnotationId = nil
+            hoveredAnnotationHandle = nil
             if activeTool != nil {
                 NSCursor.crosshair.set()
             } else {
@@ -898,10 +1138,17 @@ extension ScreenshotCanvasView {
             }
         } else {
             hoveredHandle = nil
+            hoveredAnnotationId = nil
+            hoveredAnnotationHandle = nil
             NSCursor.crosshair.set()
         }
 
-        if selectionRect == nil || prevHandle != hoveredHandle || prevToolbar != hoveredToolbarId || hoveredHandle != nil {
+        if selectionRect == nil ||
+           prevHandle != hoveredHandle ||
+           prevToolbar != hoveredToolbarId ||
+           prevAnnId != hoveredAnnotationId ||
+           prevAnnHandle != hoveredAnnotationHandle ||
+           hoveredHandle != nil {
             needsDisplay = true
         }
     }
@@ -922,21 +1169,57 @@ extension ScreenshotCanvasView {
             needsDisplay = true
         }
 
-        // 双击选区内部 → 直接完成截图（等同 Snipaste 双击复制）
-        if event.clickCount == 2, let sel = selectionRect, sel.contains(pt), activeTool == nil {
-            finishCapture(mode: .copyToClipboard)
-            return
+        // 双击检查：若双击已有文字标注，直接进入编辑模式；若双击空白选区，直接完成截图
+        if event.clickCount == 2 {
+            if let textAnn = annotations.reversed().first(where: { $0.tool == .text && $0.hitTest(pt, isSelected: true) }) {
+                beginTextInput(at: textAnn.startPoint, existing: textAnn)
+                return
+            }
+            if let sel = selectionRect, sel.contains(pt), activeTool == nil, hoveredAnnotationId == nil {
+                finishCapture(mode: .copyToClipboard)
+                return
+            }
         }
 
-        // 2. 检查是否按在 8 个边角/边缘控制点上（即使处于标注模式也允许随时微调选区边角）
+        // 2. 检查是否按在选区 8 个边角/边缘控制点上（即使处于标注模式也允许随时微调选区边角）
         if let handle = handleAt(pt), let sel = selectionRect {
             dragMode = .resizingSelection(handle: handle, initialRect: sel)
             needsDisplay = true
             return
         }
 
-        // 3. 若已有选区且点击在选区内部
+        // 3. 检查是否按在已选中标注的尺寸/端点控制点上
+        if let selId = selectedAnnotationId,
+           let ann = annotations.first(where: { $0.id == selId }),
+           let aHandle = ann.hitResizeHandle(at: pt) {
+            dragMode = .resizingAnnotation(
+                id: selId,
+                handle: aHandle,
+                initialAnnotation: ann,
+                preResizeSnapshot: annotations
+            )
+            needsDisplay = true
+            return
+        }
+
+        // 4. 检查是否按在已有标注本体上（优先支持拖拽移动位置）
+        if let hitAnn = annotations.reversed().first(where: { $0.hitTest(pt, isSelected: $0.id == selectedAnnotationId) }) {
+            selectedAnnotationId = hitAnn.id
+            syncPaletteToAnnotation(hitAnn)
+            dragMode = .movingAnnotation(
+                id: hitAnn.id,
+                startMouse: pt,
+                initialAnnotation: hitAnn,
+                preMoveSnapshot: annotations
+            )
+            NSCursor.closedHand.set()
+            needsDisplay = true
+            return
+        }
+
+        // 5. 点击在选区内部非标注空白区域
         if let sel = selectionRect, sel.contains(pt) {
+            selectedAnnotationId = nil
             if let tool = activeTool {
                 if tool == .text {
                     beginTextInput(at: pt)
@@ -961,7 +1244,8 @@ extension ScreenshotCanvasView {
             return
         }
 
-        // 4. 点击在选区外部（或尚未创建选区）：仅在无选区时重新拉框，有选区但未点工具时可重新框选
+        // 6. 点击在选区外部（或尚未创建选区）：仅在无选区时重新拉框，有选区但未点工具时可重新框选
+        selectedAnnotationId = nil
         if selectionRect == nil || (activeTool == nil && annotations.isEmpty) {
             selectionRect = CGRect(origin: pt, size: .zero)
             dragMode = .creatingSelection(start: pt)
@@ -1027,10 +1311,94 @@ extension ScreenshotCanvasView {
             }
             currentAnnotation = current
             needsDisplay = true
+
+        case .movingAnnotation(let id, let startMouse, let initial, _):
+            guard let idx = annotations.firstIndex(where: { $0.id == id }) else { break }
+            let dx = pt.x - startMouse.x
+            let dy = pt.y - startMouse.y
+            var updated = initial
+            updated.translate(dx: dx, dy: dy)
+            annotations[idx] = updated
+            needsDisplay = true
+
+        case .resizingAnnotation(let id, let handle, let initial, _):
+            guard let idx = annotations.firstIndex(where: { $0.id == id }) else { break }
+            var updated = initial
+
+            if initial.tool == .arrow {
+                if handle == .arrowStart {
+                    updated.startPoint = pt
+                } else if handle == .arrowEnd {
+                    updated.endPoint = pt
+                }
+                annotations[idx] = updated
+                needsDisplay = true
+                break
+            }
+
+            // 对矩形、圆框、画笔、荧光笔、马赛克、文字：统一通过包围盒 8 方向拉伸调整大小
+            let initialRect = initial.boundingRect
+            let newRect = resizedRect(initial: initialRect, handle: handle, to: pt)
+
+            switch initial.tool {
+            case .rectangle, .ellipse:
+                updated.startPoint = CGPoint(x: newRect.minX, y: newRect.minY)
+                updated.endPoint = CGPoint(x: newRect.maxX, y: newRect.maxY)
+
+            case .pen, .highlighter, .mosaic:
+                let origW = max(initialRect.width, 1.0)
+                let origH = max(initialRect.height, 1.0)
+                updated.points = initial.points.map { p in
+                    let u = (p.x - initialRect.minX) / origW
+                    let v = (p.y - initialRect.minY) / origH
+                    return CGPoint(
+                        x: newRect.minX + u * newRect.width,
+                        y: newRect.minY + v * newRect.height
+                    )
+                }
+                if let first = updated.points.first { updated.startPoint = first }
+                if let last = updated.points.last { updated.endPoint = last }
+                // 笔刷粗细随整体缩放比例适度微调
+                let scaleRatio = hypot(newRect.width, newRect.height) / max(hypot(origW, origH), 1.0)
+                let clampedScale = max(0.4, min(scaleRatio, 2.5))
+                updated.lineWidth = max(1.5, min(initial.lineWidth * clampedScale, 28.0))
+
+            case .text:
+                let baseFontSize = initial.customFontSize ?? ScreenshotRenderer.textFontSize(for: initial.lineWidth)
+                let origW = max(initialRect.width, 12.0)
+                let origH = max(initialRect.height, 12.0)
+                let scaleW = newRect.width / origW
+                let scaleH = newRect.height / origH
+                let scale: CGFloat
+                switch handle {
+                case .top, .bottom:
+                    scale = scaleH
+                case .left, .right:
+                    scale = scaleW
+                default:
+                    scale = (scaleW + scaleH) / 2.0
+                }
+                let newFontSize = max(11.0, min(baseFontSize * scale, 120.0))
+                updated.customFontSize = newFontSize
+                updated.startPoint = CGPoint(x: newRect.minX, y: newRect.minY)
+                updated.endPoint = CGPoint(x: newRect.minX, y: newRect.minY)
+
+            case .arrow:
+                break
+            }
+
+            annotations[idx] = updated
+            needsDisplay = true
         }
     }
 
     override func mouseUp(with event: NSEvent) {
+        let rawPt = convert(event.locationInWindow, from: nil)
+        let pt = CGPoint(
+            x: min(max(rawPt.x, 0), bounds.width),
+            y: min(max(rawPt.y, 0), bounds.height)
+        )
+
         switch dragMode {
         case .creatingSelection:
             if let sel = selectionRect, (sel.width < 6 || sel.height < 6) {
@@ -1039,10 +1407,31 @@ extension ScreenshotCanvasView {
         case .drawingAnnotation:
             if let finished = currentAnnotation {
                 if finished.isValidVisibleAnnotation {
+                    recordUndoSnapshot()
                     annotations.append(finished)
-                    redoStack.removeAll()
+                    selectedAnnotationId = finished.id
                 }
                 currentAnnotation = nil
+            }
+        case .movingAnnotation(let id, let startMouse, _, let preMoveSnapshot):
+            if hypot(pt.x - startMouse.x, pt.y - startMouse.y) >= 2.0 {
+                undoStack.append(preMoveSnapshot)
+                if undoStack.count > 50 { undoStack.removeFirst() }
+                redoStack.removeAll()
+            }
+            _ = id
+        case .resizingAnnotation(let id, _, let initial, let preResizeSnapshot):
+            if let current = annotations.first(where: { $0.id == id }) {
+                let changed = (current.startPoint != initial.startPoint ||
+                               current.endPoint != initial.endPoint ||
+                               current.points != initial.points ||
+                               current.customFontSize != initial.customFontSize ||
+                               current.lineWidth != initial.lineWidth)
+                if changed {
+                    undoStack.append(preResizeSnapshot)
+                    if undoStack.count > 50 { undoStack.removeFirst() }
+                    redoStack.removeAll()
+                }
             }
         default:
             break
@@ -1053,7 +1442,10 @@ extension ScreenshotCanvasView {
 
     override func rightMouseDown(with event: NSEvent) {
         commitPendingTextIfNeeded()
-        if selectionRect != nil && !annotations.isEmpty {
+        if selectedAnnotationId != nil {
+            selectedAnnotationId = nil
+            needsDisplay = true
+        } else if selectionRect != nil && !annotations.isEmpty {
             performUndo()
         } else if selectionRect != nil {
             selectionRect = nil
@@ -1074,6 +1466,23 @@ extension ScreenshotCanvasView {
             return
         }
 
+        // 若当前有选中的已放置标注：按 Delete / Backspace 删除该标注；按 Esc 取消选中
+        if let selId = selectedAnnotationId {
+            if event.keyCode == 51 || event.keyCode == 117 { // Backspace / Delete
+                recordUndoSnapshot()
+                annotations.removeAll(where: { $0.id == selId })
+                selectedAnnotationId = nil
+                hoveredAnnotationId = nil
+                hoveredAnnotationHandle = nil
+                needsDisplay = true
+                return
+            } else if event.keyCode == 53 { // Esc
+                selectedAnnotationId = nil
+                needsDisplay = true
+                return
+            }
+        }
+
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let chars = event.charactersIgnoringModifiers?.lowercased() ?? ""
 
@@ -1084,8 +1493,16 @@ extension ScreenshotCanvasView {
             finishCapture(mode: .copyToClipboard)
         case 99: // F3 → 直接贴到屏幕
             finishCapture(mode: .pinToScreen)
-        case 123, 124, 125, 126: // 方向键 1px 微调选区
-            nudgeSelection(keyCode: event.keyCode, resize: flags.contains(.shift))
+        case 123, 124, 125, 126: // 方向键微调选区（或微调已选中标注）
+            if let selId = selectedAnnotationId, let idx = annotations.firstIndex(where: { $0.id == selId }) {
+                let dx: CGFloat = (event.keyCode == 123) ? -1 : (event.keyCode == 124 ? 1 : 0)
+                let dy: CGFloat = (event.keyCode == 126) ? -1 : (event.keyCode == 125 ? 1 : 0)
+                recordUndoSnapshot()
+                annotations[idx].translate(dx: dx, dy: dy)
+                needsDisplay = true
+            } else {
+                nudgeSelection(keyCode: event.keyCode, resize: flags.contains(.shift))
+            }
         default:
             if flags == .command && chars == "z" {
                 performUndo()
@@ -1148,6 +1565,40 @@ extension ScreenshotCanvasView {
         return CGRect(x: x1, y: y1, width: max(x2 - x1, 4), height: max(y2 - y1, 4))
     }
 
+    private func resizedRect(initial: CGRect, handle: AnnotationHandle, to pt: CGPoint) -> CGRect {
+        var minX = initial.minX
+        var maxX = initial.maxX
+        var minY = initial.minY
+        var maxY = initial.maxY
+
+        switch handle {
+        case .topLeft:
+            minX = pt.x; minY = pt.y
+        case .top:
+            minY = pt.y
+        case .topRight:
+            maxX = pt.x; minY = pt.y
+        case .right:
+            maxX = pt.x
+        case .bottomRight:
+            maxX = pt.x; maxY = pt.y
+        case .bottom:
+            maxY = pt.y
+        case .bottomLeft:
+            minX = pt.x; maxY = pt.y
+        case .left:
+            minX = pt.x
+        case .arrowStart, .arrowEnd:
+            break
+        }
+
+        let x1 = min(minX, maxX)
+        let x2 = max(minX, maxX)
+        let y1 = min(minY, maxY)
+        let y2 = max(minY, maxY)
+        return CGRect(x: x1, y: y1, width: max(x2 - x1, 6), height: max(y2 - y1, 6))
+    }
+
     private func nudgeSelection(keyCode: UInt16, resize: Bool) {
         guard var sel = selectionRect else { return }
         let dx: CGFloat = (keyCode == 123) ? -1 : (keyCode == 124 ? 1 : 0)
@@ -1165,39 +1616,78 @@ extension ScreenshotCanvasView {
 
     func performUndo() {
         commitPendingTextIfNeeded()
-        guard let last = annotations.popLast() else { return }
-        redoStack.append(last)
+        guard let previous = undoStack.popLast() else {
+            if !annotations.isEmpty {
+                redoStack.append(annotations)
+                annotations.removeAll()
+                selectedAnnotationId = nil
+                needsDisplay = true
+            }
+            return
+        }
+        redoStack.append(annotations)
+        annotations = previous
+        if let selId = selectedAnnotationId, !annotations.contains(where: { $0.id == selId }) {
+            selectedAnnotationId = nil
+        }
         needsDisplay = true
     }
 
     func performRedo() {
         commitPendingTextIfNeeded()
         guard let next = redoStack.popLast() else { return }
-        annotations.append(next)
+        undoStack.append(annotations)
+        annotations = next
+        if let selId = selectedAnnotationId, !annotations.contains(where: { $0.id == selId }) {
+            selectedAnnotationId = nil
+        }
         needsDisplay = true
     }
 
-    // MARK: - 文字标注内联输入
+    // MARK: - 文字标注内联输入（支持原位编辑、拖动、自适应扩展与样式联动）
 
-    private func beginTextInput(at pt: CGPoint) {
+    private func beginTextInput(at pt: CGPoint, existing: ScreenshotAnnotation? = nil) {
         commitPendingTextIfNeeded()
         textInputOrigin = pt
-        let width = ScreenshotPalette.strokeWidths[selectedWidthIndex].width
-        let fontSize: CGFloat = width <= 3 ? 15 : (width <= 5 ? 19 : 25)
-        let color = ScreenshotPalette.colors[selectedColorIndex].color
+        editingTextAnnotation = existing
+        preEditTextSnapshot = annotations
 
+        let width: CGFloat
+        let color: NSColor
+        let initialText: String
+
+        if let existing {
+            width = existing.lineWidth
+            color = existing.color
+            initialText = existing.text
+            annotations.removeAll(where: { $0.id == existing.id })
+            syncPaletteToAnnotation(existing)
+        } else {
+            width = ScreenshotPalette.strokeWidths[selectedWidthIndex].width
+            color = ScreenshotPalette.colors[selectedColorIndex].color
+            initialText = ""
+        }
+
+        let fontSize = existing?.customFontSize ?? ScreenshotRenderer.textFontSize(for: width)
         let tf = NSTextField(frame: NSRect(x: pt.x, y: pt.y - 4, width: 220, height: fontSize + 14))
         tf.font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
         tf.textColor = color
-        tf.backgroundColor = NSColor.black.withAlphaComponent(0.65)
+        tf.backgroundColor = NSColor(calibratedRed: 0.08, green: 0.11, blue: 0.16, alpha: 0.85)
         tf.drawsBackground = true
-        tf.isBordered = true
-        tf.focusRingType = .exterior
+        tf.isBordered = false
+        tf.wantsLayer = true
+        tf.layer?.cornerRadius = 5
+        tf.layer?.borderWidth = 1.0
+        tf.layer?.borderColor = ScreenshotPalette.themeAccent.withAlphaComponent(0.65).cgColor
+        tf.focusRingType = .none
         tf.placeholderString = "输入批注文字 (回车确认)..."
+        tf.stringValue = initialText
         tf.delegate = self
         addSubview(tf)
         window?.makeFirstResponder(tf)
         textInputField = tf
+        resizeActiveTextFieldToFit()
+        needsDisplay = true
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
@@ -1218,26 +1708,52 @@ extension ScreenshotCanvasView {
         tf.removeFromSuperview()
         textInputField = nil
         window?.makeFirstResponder(self)
-        guard !str.isEmpty else { return }
-        let color = ScreenshotPalette.colors[selectedColorIndex].color
-        let width = ScreenshotPalette.strokeWidths[selectedWidthIndex].width
-        annotations.append(
-            ScreenshotAnnotation(
+
+        if !str.isEmpty {
+            if let preSnap = preEditTextSnapshot {
+                undoStack.append(preSnap)
+                if undoStack.count > 50 { undoStack.removeFirst() }
+                redoStack.removeAll()
+            } else {
+                recordUndoSnapshot()
+            }
+            let color = ScreenshotPalette.colors[selectedColorIndex].color
+            let width = ScreenshotPalette.strokeWidths[selectedWidthIndex].width
+            let annId = editingTextAnnotation?.id ?? UUID()
+            let newAnn = ScreenshotAnnotation(
+                id: annId,
                 tool: .text,
                 color: color,
                 lineWidth: width,
                 startPoint: textInputOrigin,
                 endPoint: textInputOrigin,
-                text: str
+                text: str,
+                customFontSize: editingTextAnnotation?.customFontSize
             )
-        )
-        redoStack.removeAll()
+            annotations.append(newAnn)
+            selectedAnnotationId = annId
+        } else if let _ = editingTextAnnotation {
+            if let preSnap = preEditTextSnapshot {
+                undoStack.append(preSnap)
+                if undoStack.count > 50 { undoStack.removeFirst() }
+                redoStack.removeAll()
+            }
+            selectedAnnotationId = nil
+        }
+        editingTextAnnotation = nil
+        preEditTextSnapshot = nil
         needsDisplay = true
     }
 
     private func cancelPendingText() {
         textInputField?.removeFromSuperview()
         textInputField = nil
+        if let original = editingTextAnnotation {
+            annotations.append(original)
+            selectedAnnotationId = original.id
+        }
+        editingTextAnnotation = nil
+        preEditTextSnapshot = nil
         window?.makeFirstResponder(self)
         needsDisplay = true
     }

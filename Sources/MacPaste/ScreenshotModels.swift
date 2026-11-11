@@ -69,17 +69,55 @@ enum ResizeHandle: CaseIterable {
     }
 }
 
+// MARK: - 已放置标注的控制点（用于选中后调整箭头端点或矩形/圆框/画笔/荧光笔/文字四角与四边缘）
+
+enum AnnotationHandle: Equatable {
+    case arrowStart
+    case arrowEnd
+    case topLeft
+    case top
+    case topRight
+    case right
+    case bottomRight
+    case bottom
+    case bottomLeft
+    case left
+}
+
 // MARK: - 标注数据结构
 
 struct ScreenshotAnnotation: Identifiable {
-    let id = UUID()
+    let id: UUID
     var tool: ScreenshotTool
     var color: NSColor
     var lineWidth: CGFloat
     var startPoint: CGPoint
     var endPoint: CGPoint
-    var points: [CGPoint] = []
-    var text: String = ""
+    var points: [CGPoint]
+    var text: String
+    var customFontSize: CGFloat?
+
+    init(
+        id: UUID = UUID(),
+        tool: ScreenshotTool,
+        color: NSColor,
+        lineWidth: CGFloat,
+        startPoint: CGPoint,
+        endPoint: CGPoint,
+        points: [CGPoint] = [],
+        text: String = "",
+        customFontSize: CGFloat? = nil
+    ) {
+        self.id = id
+        self.tool = tool
+        self.color = color
+        self.lineWidth = lineWidth
+        self.startPoint = startPoint
+        self.endPoint = endPoint
+        self.points = points
+        self.text = text
+        self.customFontSize = customFontSize
+    }
 
     mutating func translate(dx: CGFloat, dy: CGFloat) {
         startPoint.x += dx
@@ -105,6 +143,149 @@ struct ScreenshotAnnotation: Identifiable {
         case .text:
             return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
+    }
+
+    /// 计算标注在视图坐标系下的包围盒（用于选中高亮框、边界约束与拖拽命中判定）
+    var boundingRect: CGRect {
+        switch tool {
+        case .rectangle, .ellipse, .arrow:
+            return ScreenshotRenderer.normalizedRect(from: startPoint, to: endPoint)
+        case .pen, .highlighter, .mosaic:
+            guard let first = points.first else {
+                return CGRect(origin: startPoint, size: .zero)
+            }
+            var minX = first.x, maxX = first.x
+            var minY = first.y, maxY = first.y
+            for pt in points.dropFirst() {
+                minX = min(minX, pt.x)
+                maxX = max(maxX, pt.x)
+                minY = min(minY, pt.y)
+                maxY = max(maxY, pt.y)
+            }
+            let pad: CGFloat = tool == .highlighter ? lineWidth * 2.0 : (tool == .mosaic ? 12.0 : lineWidth / 2.0 + 2.0)
+            return CGRect(x: minX - pad, y: minY - pad, width: (maxX - minX) + pad * 2, height: (maxY - minY) + pad * 2)
+        case .text:
+            let attrs = ScreenshotRenderer.textAttributes(color: color, lineWidth: lineWidth, customFontSize: customFontSize)
+            let size = (text as NSString).size(withAttributes: attrs)
+            return CGRect(
+                x: startPoint.x,
+                y: startPoint.y,
+                width: max(size.width, 18),
+                height: max(size.height, 18)
+            )
+        }
+    }
+
+    /// 选中态下可拖拽调整大小与形状的控制点列表（框选、画笔、荧光笔、文字均支持 8 方向拉伸）
+    var resizeHandles: [(handle: AnnotationHandle, point: CGPoint)] {
+        switch tool {
+        case .arrow:
+            return [
+                (.arrowStart, startPoint),
+                (.arrowEnd, endPoint),
+            ]
+        case .rectangle, .ellipse, .pen, .highlighter, .mosaic, .text:
+            let r = boundingRect
+            guard r.width >= 4, r.height >= 4 else { return [] }
+            return [
+                (.topLeft, CGPoint(x: r.minX, y: r.minY)),
+                (.top, CGPoint(x: r.midX, y: r.minY)),
+                (.topRight, CGPoint(x: r.maxX, y: r.minY)),
+                (.right, CGPoint(x: r.maxX, y: r.midY)),
+                (.bottomRight, CGPoint(x: r.maxX, y: r.maxY)),
+                (.bottom, CGPoint(x: r.midX, y: r.maxY)),
+                (.bottomLeft, CGPoint(x: r.minX, y: r.maxY)),
+                (.left, CGPoint(x: r.minX, y: r.midY)),
+            ]
+        }
+    }
+
+    /// 检测点是否命中该标注的控制点
+    func hitResizeHandle(at pt: CGPoint, radius: CGFloat = 9.0) -> AnnotationHandle? {
+        for item in resizeHandles {
+            if hypot(pt.x - item.point.x, pt.y - item.point.y) <= radius {
+                return item.handle
+            }
+        }
+        return nil
+    }
+
+    /// 检测点是否命中该标注本体（用于鼠标悬停抓手提示与点击拖拽移动位置）
+    func hitTest(_ pt: CGPoint, isSelected: Bool = false) -> Bool {
+        switch tool {
+        case .text:
+            return boundingRect.insetBy(dx: -6, dy: -4).contains(pt)
+
+        case .rectangle:
+            let rect = ScreenshotRenderer.normalizedRect(from: startPoint, to: endPoint)
+            let tol = max(7.0, lineWidth / 2.0 + 5.0)
+            let outer = rect.insetBy(dx: -tol, dy: -tol)
+            guard outer.contains(pt) else { return false }
+            if rect.width <= tol * 2.4 || rect.height <= tol * 2.4 {
+                return true
+            }
+            return !rect.insetBy(dx: tol, dy: tol).contains(pt)
+
+        case .ellipse:
+            let rect = ScreenshotRenderer.normalizedRect(from: startPoint, to: endPoint)
+            let tol = max(7.0, lineWidth / 2.0 + 5.0)
+            guard rect.insetBy(dx: -tol, dy: -tol).contains(pt) else { return false }
+            let rx = max(rect.width / 2.0, 1.0)
+            let ry = max(rect.height / 2.0, 1.0)
+            let dx = pt.x - rect.midX
+            let dy = pt.y - rect.midY
+            let outerRx = rx + tol
+            let outerRy = ry + tol
+            let outerVal = (dx * dx) / (outerRx * outerRx) + (dy * dy) / (outerRy * outerRy)
+            guard outerVal <= 1.0 else { return false }
+            if rx <= tol * 1.2 || ry <= tol * 1.2 {
+                return true
+            }
+            let innerRx = max(rx - tol, 1.0)
+            let innerRy = max(ry - tol, 1.0)
+            let innerVal = (dx * dx) / (innerRx * innerRx) + (dy * dy) / (innerRy * innerRy)
+            return innerVal >= 1.0
+
+        case .arrow:
+            let tol = max(8.0, lineWidth * 1.8)
+            return Self.distanceToSegment(pt, a: startPoint, b: endPoint) <= tol
+
+        case .pen, .highlighter, .mosaic:
+            if isSelected && boundingRect.insetBy(dx: -4, dy: -4).contains(pt) {
+                return true
+            }
+            let tol: CGFloat = {
+                switch tool {
+                case .highlighter: return max(10.0, lineWidth * 2.2)
+                case .mosaic: return 14.0
+                default: return max(8.0, lineWidth + 5.0)
+                }
+            }()
+            guard boundingRect.insetBy(dx: -tol, dy: -tol).contains(pt) else { return false }
+            if points.count == 1 {
+                return hypot(pt.x - points[0].x, pt.y - points[0].y) <= tol
+            }
+            guard points.count >= 2 else { return false }
+            for i in 0..<(points.count - 1) {
+                if Self.distanceToSegment(pt, a: points[i], b: points[i + 1]) <= tol {
+                    return true
+                }
+            }
+            return false
+        }
+    }
+
+    private static func distanceToSegment(_ p: CGPoint, a: CGPoint, b: CGPoint) -> CGFloat {
+        let dx = b.x - a.x
+        let dy = b.y - a.y
+        let lenSq = dx * dx + dy * dy
+        guard lenSq > 0.0001 else {
+            return hypot(p.x - a.x, p.y - a.y)
+        }
+        let t = min(max(((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq, 0.0), 1.0)
+        let projX = a.x + t * dx
+        let projY = a.y + t * dy
+        return hypot(p.x - projX, p.y - projY)
     }
 }
 
@@ -257,18 +438,37 @@ enum ScreenshotRenderer {
 
         case .text:
             guard !item.text.isEmpty else { return }
-            let fontSize: CGFloat = item.lineWidth <= 3 ? 15 : (item.lineWidth <= 5 ? 19 : 25)
-            let shadow = NSShadow()
-            shadow.shadowColor = NSColor.black.withAlphaComponent(0.65)
-            shadow.shadowOffset = NSSize(width: 0, height: -1)
-            shadow.shadowBlurRadius = 2.5
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
-                .foregroundColor: item.color,
-                .shadow: shadow,
-            ]
+            let attrs = Self.textAttributes(color: item.color, lineWidth: item.lineWidth, customFontSize: item.customFontSize)
             (item.text as NSString).draw(at: item.startPoint, withAttributes: attrs)
         }
+    }
+
+    static func textFontSize(for lineWidth: CGFloat) -> CGFloat {
+        lineWidth <= 3 ? 15 : (lineWidth <= 5 ? 19 : 25)
+    }
+
+    static func textAttributes(color: NSColor, lineWidth: CGFloat, customFontSize: CGFloat? = nil) -> [NSAttributedString.Key: Any] {
+        let fontSize = customFontSize ?? textFontSize(for: lineWidth)
+        var attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
+            .foregroundColor: color,
+        ]
+        // 红色、蓝色、绿色、黄色等常规彩色与深色文字完全不加阴影，保持字迹边缘纯净平滑、极度锐利清晰；
+        // 仅在白色等极浅色文字时保留一层极细微极淡的柔和微暗影（防止在浅白底色上无法辨识），彻底杜绝黑重发糊的黑晕
+        if isLightColor(color) {
+            let shadow = NSShadow()
+            shadow.shadowColor = NSColor.black.withAlphaComponent(0.28)
+            shadow.shadowOffset = NSSize(width: 0, height: -0.5)
+            shadow.shadowBlurRadius = 1.2
+            attrs[.shadow] = shadow
+        }
+        return attrs
+    }
+
+    private static func isLightColor(_ color: NSColor) -> Bool {
+        guard let rgb = color.usingColorSpace(.deviceRGB) else { return false }
+        let lum = 0.299 * rgb.redComponent + 0.587 * rgb.greenComponent + 0.114 * rgb.blueComponent
+        return lum > 0.88
     }
 
     static func normalizedRect(from p1: CGPoint, to p2: CGPoint, shiftSquare: Bool = false) -> CGRect {
@@ -417,15 +617,17 @@ enum ScreenshotRenderer {
 
         NSGraphicsContext.saveGraphicsState()
         if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
-            NSGraphicsContext.current = ctx
             let cg = ctx.cgContext
             // 先画底层高清裁剪图（CGContext 默认左下角原点）
             cg.draw(baseCG, in: CGRect(origin: .zero, size: targetSize))
 
-            // 翻转坐标系以绘制左上角原点的标注
+            // 翻转坐标系以绘制左上角原点的标注，并同步绑定 flipped = true 的 NSGraphicsContext
+            // 确保 NSString.draw / NSAttributedString 等文本渲染与实时画布方向完全一致，避免导出后文字上下颠倒
             cg.translateBy(x: 0, y: targetSize.height)
             cg.scaleBy(x: 1, y: -1)
             cg.translateBy(x: -selectionRect.minX, y: -selectionRect.minY)
+
+            NSGraphicsContext.current = NSGraphicsContext(cgContext: cg, flipped: true)
 
             for item in annotations {
                 drawAnnotation(item, sampler: sampler)
