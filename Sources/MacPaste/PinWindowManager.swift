@@ -84,6 +84,15 @@ final class PinItemState: ObservableObject {
     @Published var isPerformingOCR: Bool = false
     @Published var showOCRList: Bool = false
 
+    /// 翻译状态与结果
+    @Published var sourceTextForTranslation: String = ""
+    @Published var translatedText: String = ""
+    @Published var detectedSourceName: String = "自动检测"
+    @Published var selectedTargetLanguage: TranslationService.TargetLanguage = TranslationService.commonTargetLanguages[0]
+    @Published var isTranslating: Bool = false
+    @Published var showTranslation: Bool = false
+    @Published var translationErrorMessage: String? = nil
+
     /// 文本贴图模式切换：分段清单 / 原始文本 / 便签编辑
     @Published var showSegments: Bool = false
     @Published var isEditingText: Bool = false
@@ -134,7 +143,7 @@ final class PinPanel: NSPanel {
                 guard let s = pinState else { return false }
                 if s.isEditingText { return true }
                 if s.kind == .shortText || s.kind == .longText { return true } // 文本贴图内容区默认直接划词选择，拖拽顶部栏移动窗口
-                if s.kind == .image && !s.showOCRList { return true } // 图片贴图默认直接划词
+                if s.kind == .image && !s.showOCRList && !s.showTranslation { return true } // 图片贴图默认直接划词
                 return false
             }()
 
@@ -281,6 +290,8 @@ final class PinWindowController: NSObject {
             onToggleCollapse: { [weak self] in self?.toggleCollapse() },
             onOpacityChange: { [weak self] val in self?.setOpacity(val) },
             onTriggerOCR: { [weak self] in self?.triggerOCR() },
+            onTriggerTranslate: { [weak self] in self?.triggerTranslate() },
+            onChangeTargetLanguage: { [weak self] lang in self?.triggerTranslate(targetCode: lang.code) },
             onResizeStart: { [weak p] in p?.frame.size ?? initialSize },
             onResize: { [weak self] base, delta in self?.resize(from: base, delta: delta) },
             onClose: { [weak self] in self?.close() }
@@ -373,6 +384,101 @@ final class PinWindowController: NSObject {
         }
     }
 
+    func triggerTranslate(targetCode: String? = nil) {
+        if state.showTranslation && targetCode == nil {
+            state.showTranslation = false
+            panel?.isShowingScrollableContent = state.showOCRList
+            return
+        }
+
+        state.showTranslation = true
+        state.showOCRList = false
+        panel?.isShowingScrollableContent = true
+
+        // 适当扩展窗口尺寸以舒适显示双语对照卡片
+        if let panel {
+            let f = panel.frame
+            var w = f.width
+            var h = f.height
+            var changed = false
+            if w < 380 {
+                w = 380
+                changed = true
+            }
+            if h < 240 {
+                h = 240
+                changed = true
+            }
+            if changed {
+                let newOrigin = NSPoint(x: f.minX, y: f.maxY - h)
+                panel.setFrame(NSRect(origin: newOrigin, size: CGSize(width: w, height: h)), display: true, animate: true)
+                expandedSize = CGSize(width: w, height: h)
+            }
+        }
+
+        let executeWithText: (String) -> Void = { [weak self] rawText in
+            guard let self else { return }
+            let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else {
+                self.state.translationErrorMessage = "未识别到可翻译文本"
+                self.state.isTranslating = false
+                return
+            }
+
+            self.state.sourceTextForTranslation = text
+            let (code, name) = TranslationService.shared.detectLanguage(for: text)
+            self.state.detectedSourceName = name
+
+            let target: TranslationService.TargetLanguage
+            if let targetCode {
+                target = TranslationService.commonTargetLanguages.first(where: { $0.code == targetCode })
+                    ?? TranslationService.shared.suggestedTargetLanguage(for: text)
+            } else {
+                target = TranslationService.shared.suggestedTargetLanguage(for: text)
+            }
+            self.state.selectedTargetLanguage = target
+
+            self.state.isTranslating = true
+            self.state.translationErrorMessage = nil
+
+            Task {
+                do {
+                    let result = try await TranslationService.shared.translate(
+                        text: text,
+                        sourceLang: code,
+                        targetCode: target.code
+                    )
+                    await MainActor.run {
+                        self.state.translatedText = result
+                        self.state.isTranslating = false
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.state.translationErrorMessage = error.localizedDescription
+                        self.state.isTranslating = false
+                    }
+                }
+            }
+        }
+
+        if state.kind == .image, let img = state.image {
+            if !state.sourceTextForTranslation.isEmpty {
+                executeWithText(state.sourceTextForTranslation)
+            } else if !state.ocrLines.isEmpty {
+                executeWithText(state.ocrLines.joined(separator: "\n"))
+            } else {
+                state.isTranslating = true
+                ScreenshotManager.recognizeLines(from: img) { [weak self] lines in
+                    let joined = lines.joined(separator: "\n")
+                    self?.state.ocrLines = lines
+                    executeWithText(joined)
+                }
+            }
+        } else {
+            executeWithText(state.textContent)
+        }
+    }
+
     func close() {
         panel?.orderOut(nil)
         panel = nil
@@ -459,8 +565,8 @@ final class PinWindowManager: ObservableObject {
         }
     }
 
-    /// 截图工具栏直接调用：将带标注的截图贴到原先框选的屏幕位置，可选立即执行 OCR
-    func pinImage(_ image: NSImage, atScreenRect screenRect: NSRect? = nil, triggerOCR: Bool = false) {
+    /// 截图工具栏直接调用：将带标注的截图贴到原先框选的屏幕位置，可选立即执行 OCR 或翻译
+    func pinImage(_ image: NSImage, atScreenRect screenRect: NSRect? = nil, triggerOCR: Bool = false, triggerTranslate: Bool = false) {
         let rep = image.representations.first
         let pw = rep?.pixelsWide ?? Int(image.size.width)
         let ph = rep?.pixelsHigh ?? Int(image.size.height)
@@ -482,7 +588,9 @@ final class PinWindowManager: ObservableObject {
             exactOrigin = nil
         }
         let controller = presentPin(state: state, size: size, exactOrigin: exactOrigin)
-        if triggerOCR {
+        if triggerTranslate {
+            controller.triggerTranslate()
+        } else if triggerOCR {
             controller.triggerOCR()
         }
     }

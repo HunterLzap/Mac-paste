@@ -84,12 +84,17 @@ final class ScreenshotManager {
             onCaptured?()
         }
 
-        canvas.onFinishPin = { [weak self] finalImg, screenRect, triggerOCR in
+        canvas.onFinishPin = { [weak self] finalImg, screenRect, triggerOCR, triggerTranslate in
             self?.writeImageToPasteboard(finalImg)
             self?.dismissOverlay()
             onCaptured?()
             Task { @MainActor in
-                PinWindowManager.shared.pinImage(finalImg, atScreenRect: screenRect, triggerOCR: triggerOCR)
+                PinWindowManager.shared.pinImage(
+                    finalImg,
+                    atScreenRect: screenRect,
+                    triggerOCR: triggerOCR,
+                    triggerTranslate: triggerTranslate
+                )
             }
         }
 
@@ -219,18 +224,34 @@ final class ScreenshotManager {
 
     /// 使用 macOS 原生 Vision 框架离线高精度识别图片中的中英文文本（包含 CoreImage 预处理、超分锐化与同行碎片智能拼接）
     static func recognizeLines(from image: NSImage, completion: @escaping ([String]) -> Void) {
-        guard let rawCGImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        let rawCGImage: CGImage? = {
+            if let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                return cg
+            }
+            if let rep = image.representations.first as? NSBitmapImageRep, let cg = rep.cgImage {
+                return cg
+            }
+            if let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let cg = rep.cgImage {
+                return cg
+            }
+            return nil
+        }()
+        guard let validCGImage = rawCGImage else {
             completion([])
             return
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            let processedCGImage = preprocessForOCR(cgImage: rawCGImage)
+            let processedCGImage = preprocessForOCR(cgImage: validCGImage)
 
             let req = VNRecognizeTextRequest()
             req.revision = VNRecognizeTextRequestRevision3
             req.recognitionLevel = .accurate
-            req.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
+            req.recognitionLanguages = [
+                "zh-Hans", "zh-Hant", "en-US", "ja-JP", "ko-KR", "ar-SA", "fr-FR", "de-DE",
+                "es-ES", "ru-RU", "pt-BR", "it-IT", "th-TH", "vi-VT", "id-ID", "tr-TR",
+                "uk-UA", "pl-PL", "nl-NL", "sv-SE", "cs-CZ", "ms-MY", "hi-IN"
+            ]
             req.automaticallyDetectsLanguage = true
             req.usesLanguageCorrection = true
             req.minimumTextHeight = 0.0

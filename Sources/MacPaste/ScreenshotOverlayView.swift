@@ -58,7 +58,7 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
     let hasScreenPermission: Bool
 
     var onFinishCopy: ((NSImage, CGRect) -> Void)?
-    var onFinishPin: ((NSImage, CGRect, Bool) -> Void)?
+    var onFinishPin: ((NSImage, CGRect, Bool, Bool) -> Void)?
     var onFinishSave: ((NSImage) -> Void)?
     var onStartScrollCapture: ((CGRect) -> Void)?
     var onCancel: (() -> Void)?
@@ -72,6 +72,24 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
     private var undoStack: [[ScreenshotAnnotation]] = []
     private var redoStack: [[ScreenshotAnnotation]] = []
     private var currentAnnotation: ScreenshotAnnotation?
+
+    // MARK: - 原地截图翻译状态
+    struct InPlaceTranslationData {
+        let sourceText: String
+        let translatedText: String
+        let targetLanguage: TranslationService.TargetLanguage
+        let dominantBgColor: NSColor
+        let textColor: NSColor
+    }
+
+    var showTranslationInPlace: Bool = false
+    var isTranslatingInPlace: Bool = false
+    var inPlaceTranslationData: InPlaceTranslationData?
+    var inPlaceTranslationError: String?
+    var selectedTargetLanguage: TranslationService.TargetLanguage = TranslationService.commonTargetLanguages.first(where: { $0.id == "en" }) ?? TranslationService.commonTargetLanguages[1]
+    var isShowingLanguageMenu: Bool = false
+    var currentTransButtonRect: CGRect = .zero
+    private var activeTranslationRequestId: UUID?
 
     // 已放置标注的选中与悬停状态（支持拖拽移动位置、调整端点/四角、双击重编辑文字、修改颜色粗细与删除）
     private var selectedAnnotationId: UUID?
@@ -177,6 +195,12 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
         if let sel = selectionRect, sel.width > 1, sel.height > 1 {
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath(rect: sel).addClip()
+
+            // 原地翻译生效时：先在选区底层绘制翻译后的背景和排版文本，完全替换原屏幕像素！
+            if showTranslationInPlace, let transData = inPlaceTranslationData {
+                drawInPlaceTranslation(transData, in: sel)
+            }
+
             for item in annotations {
                 ScreenshotRenderer.drawAnnotation(item, sampler: sampler)
             }
@@ -185,6 +209,13 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
             }
             drawAnnotationSelectionFeedback()
             NSGraphicsContext.restoreGraphicsState()
+
+            // 绘制正在翻译加载/错误浮层
+            if isTranslatingInPlace {
+                drawTranslatingOverlay(in: sel)
+            } else if let err = inPlaceTranslationError {
+                drawTranslationErrorOverlay(err, in: sel)
+            }
 
             drawSelectionFrameAndHandles(sel)
         } else {
@@ -204,6 +235,11 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
         toolbarHits.removeAll()
         if let sel = selectionRect, sel.width >= 12, sel.height >= 12, !isActivelyDragging {
             drawFloatingToolbar(for: sel)
+            if isShowingLanguageMenu {
+                drawLanguageMenu(anchorRect: currentTransButtonRect)
+            }
+        } else {
+            isShowingLanguageMenu = false
         }
     }
 
@@ -647,7 +683,7 @@ extension ScreenshotCanvasView {
 
 extension ScreenshotCanvasView {
     func drawFloatingToolbar(for sel: CGRect) {
-        let mainBarW: CGFloat = 480
+        let mainBarW: CGFloat = 530
         let mainBarH: CGFloat = 36
         let styleBarH: CGFloat = 32
         let showStyleBar = (activeTool != nil || selectedAnnotationId != nil || textInputField != nil)
@@ -788,6 +824,98 @@ extension ScreenshotCanvasView {
             self?.finishCapture(mode: .pinWithOCR)
         }
         cursorX += btnW + 2
+
+        // 3. 截图原地翻译组合按钮（左侧图标触发/切换翻译，右侧下拉箭头呼出飞书式“将内容翻译为”多语言菜单）
+        let transBtnW: CGFloat = 46
+        let transRect = CGRect(x: cursorX, y: btnY, width: transBtnW, height: btnH)
+        currentTransButtonRect = transRect
+        let isTransActive = showTranslationInPlace
+        let isTranslating = isTranslatingInPlace
+
+        let transBg = NSBezierPath(roundedRect: transRect, xRadius: 6, yRadius: 6)
+        if isTransActive {
+            NSColor.systemBlue.withAlphaComponent(0.28).setFill()
+            transBg.fill()
+            NSColor.systemBlue.withAlphaComponent(0.65).setStroke()
+            transBg.lineWidth = 1.0
+            transBg.stroke()
+        } else if hoveredToolbarId?.hasPrefix("act_translate") == true {
+            NSColor.white.withAlphaComponent(0.12).setFill()
+            transBg.fill()
+        }
+
+        let iconSubRect = CGRect(x: transRect.minX, y: transRect.minY, width: 28, height: transRect.height)
+        let chevronSubRect = CGRect(x: transRect.minX + 28, y: transRect.minY, width: 18, height: transRect.height)
+
+        toolbarHits.append(ToolbarHitItem(
+            id: "act_translate_main",
+            rect: iconSubRect,
+            tooltip: isTransActive ? "显示原图" : "翻译",
+            action: { [weak self] in
+                guard let self else { return }
+                if self.isTranslatingInPlace {
+                    // 正在翻译时点击可取消
+                    self.activeTranslationRequestId = nil
+                    self.isTranslatingInPlace = false
+                    self.needsDisplay = true
+                    return
+                }
+                if self.inPlaceTranslationError != nil {
+                    // 报错时点击重试
+                    self.inPlaceTranslationError = nil
+                    self.performInPlaceTranslation()
+                    return
+                }
+                if self.inPlaceTranslationData != nil {
+                    self.showTranslationInPlace.toggle()
+                    self.needsDisplay = true
+                } else {
+                    self.performInPlaceTranslation()
+                }
+            }
+        ))
+
+        toolbarHits.append(ToolbarHitItem(
+            id: "act_translate_menu",
+            rect: chevronSubRect,
+            tooltip: "选择语言",
+            action: { [weak self] in
+                guard let self else { return }
+                self.isShowingLanguageMenu.toggle()
+                self.needsDisplay = true
+            }
+        ))
+
+        // 绘制主图标 (translate SF symbol)
+        let iconColor: NSColor = isTransActive ? NSColor.systemBlue : (isTranslating ? NSColor.systemTeal : NSColor(white: 0.9, alpha: 1.0))
+        if let icon = NSImage(systemSymbolName: "translate", accessibilityDescription: nil) {
+            let conf = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium).applying(.init(hierarchicalColor: iconColor))
+            let configured = icon.withSymbolConfiguration(conf) ?? icon
+            let center = CGPoint(x: iconSubRect.midX, y: iconSubRect.midY)
+            let drawR = CGRect(x: center.x - 7, y: center.y - 7, width: 14, height: 14)
+            configured.draw(in: drawR, from: .zero, operation: .sourceOver, fraction: 1.0)
+        }
+
+        // 绘制中间细分割线
+        let divX = transRect.minX + 28
+        let divPath = NSBezierPath()
+        divPath.move(to: CGPoint(x: divX, y: transRect.minY + 6))
+        divPath.line(to: CGPoint(x: divX, y: transRect.maxY - 6))
+        NSColor.white.withAlphaComponent(0.2).setStroke()
+        divPath.lineWidth = 1.0
+        divPath.stroke()
+
+        // 绘制下拉箭头 chevron.down / chevron.up
+        let chevSymbol = isShowingLanguageMenu ? "chevron.up" : "chevron.down"
+        if let chev = NSImage(systemSymbolName: chevSymbol, accessibilityDescription: nil) {
+            let conf = NSImage.SymbolConfiguration(pointSize: 8, weight: .bold)
+            let configured = chev.withSymbolConfiguration(conf) ?? chev
+            let center = CGPoint(x: chevronSubRect.midX, y: chevronSubRect.midY)
+            let drawR = CGRect(x: center.x - 4, y: center.y - 4, width: 8, height: 8)
+            configured.draw(in: drawR, from: .zero, operation: .sourceOver, fraction: 0.85)
+        }
+
+        cursorX += transBtnW + 2
 
         let saveRect = CGRect(x: cursorX, y: btnY, width: btnW, height: btnH)
         drawToolbarIconButton(
@@ -978,7 +1106,7 @@ extension ScreenshotCanvasView {
         }
 
         // 5. 悬停气泡 Tooltip
-        if let hoveredId = hoveredToolbarId, let hit = toolbarHits.first(where: { $0.id == hoveredId }) {
+        if let hoveredId = hoveredToolbarId, let hit = toolbarHits.first(where: { $0.id == hoveredId }), !hit.tooltip.isEmpty {
             drawToolbarTooltip(hit.tooltip, forButtonRect: hit.rect, toolbarRect: mainRect)
         }
     }
@@ -1081,6 +1209,7 @@ extension ScreenshotCanvasView {
         case copyToClipboard
         case pinToScreen
         case pinWithOCR
+        case pinWithTranslate
         case saveFile
     }
 
@@ -1156,6 +1285,21 @@ extension ScreenshotCanvasView {
     override func mouseDown(with event: NSEvent) {
         let pt = convert(event.locationInWindow, from: nil)
         mouseLocationInView = pt
+
+        // 语言菜单展开时优先处理或关闭
+        if isShowingLanguageMenu {
+            if let hit = toolbarHits.first(where: { $0.id.hasPrefix("lang_") && $0.rect.contains(pt) }) {
+                hit.action()
+                return
+            }
+            isShowingLanguageMenu = false
+            needsDisplay = true
+            if let hit = toolbarHits.first(where: { $0.rect.contains(pt) }) {
+                hit.action()
+                return
+            }
+            return
+        }
 
         // 1. 先检查是否点击在浮动工具栏按钮上
         if let hit = toolbarHits.first(where: { $0.rect.contains(pt) }) {
@@ -1249,6 +1393,10 @@ extension ScreenshotCanvasView {
         if selectionRect == nil || (activeTool == nil && annotations.isEmpty) {
             selectionRect = CGRect(origin: pt, size: .zero)
             dragMode = .creatingSelection(start: pt)
+            showTranslationInPlace = false
+            inPlaceTranslationData = nil
+            inPlaceTranslationError = nil
+            isTranslatingInPlace = false
             needsDisplay = true
         }
     }
@@ -1763,14 +1911,34 @@ extension ScreenshotCanvasView {
     func finishCapture(mode: FinishMode) {
         commitPendingTextIfNeeded()
         let sel = selectionRect ?? bounds
+
+        let inPlaceInfo: ScreenshotRenderer.InPlaceTranslationInfo? = {
+            if showTranslationInPlace, let d = inPlaceTranslationData {
+                return ScreenshotRenderer.InPlaceTranslationInfo(
+                    text: d.translatedText,
+                    dominantBgColor: d.dominantBgColor,
+                    textColor: d.textColor
+                )
+            }
+            return nil
+        }()
+
         guard sel.width >= 4, sel.height >= 4,
               let finalImage = ScreenshotRenderer.renderFinalImage(
                   selectionRect: sel,
                   sampler: sampler,
-                  annotations: annotations
+                  annotations: annotations,
+                  inPlaceTranslation: inPlaceInfo
               ) else {
             onCancel?()
             return
+        }
+
+        // 如果处于原地翻译状态，将翻译后的文本字符串也存入剪贴板文本
+        if showTranslationInPlace, let transText = inPlaceTranslationData?.translatedText, !transText.isEmpty {
+            let pb = NSPasteboard.general
+            pb.setString(transText, forType: .string)
+            ClipboardMonitor.markInternalWrite(transText)
         }
 
         // 将翻转视图选区坐标转换为屏幕 AppKit 坐标（左下角原点）用于贴图原位落点
@@ -1786,9 +1954,11 @@ extension ScreenshotCanvasView {
         case .copyToClipboard:
             onFinishCopy?(finalImage, appKitRect)
         case .pinToScreen:
-            onFinishPin?(finalImage, appKitRect, false)
+            onFinishPin?(finalImage, appKitRect, false, false)
         case .pinWithOCR:
-            onFinishPin?(finalImage, appKitRect, true)
+            onFinishPin?(finalImage, appKitRect, true, false)
+        case .pinWithTranslate:
+            onFinishPin?(finalImage, appKitRect, false, true)
         case .saveFile:
             onFinishSave?(finalImage)
         }
@@ -1807,6 +1977,343 @@ extension ScreenshotCanvasView {
         )
         DispatchQueue.main.async { [weak self] in
             self?.onStartScrollCapture?(appKitRect)
+        }
+    }
+}
+
+// MARK: - 原地截图翻译实现
+
+extension ScreenshotCanvasView {
+    func drawLanguageMenu(anchorRect: CGRect) {
+        let languages = TranslationService.commonTargetLanguages
+        let rowsPerCol = 12
+        let colW: CGFloat = 142
+        let colGap: CGFloat = 8
+        let itemH: CGFloat = 26
+        let headerH: CGFloat = 28
+        let menuW: CGFloat = colW * 2 + colGap + 12
+        let totalH = headerH + 6 + CGFloat(rowsPerCol) * itemH + 8
+
+        var menuX = anchorRect.midX - menuW / 2
+        menuX = min(max(menuX, 10), bounds.width - menuW - 10)
+
+        var menuY = anchorRect.maxY + 8
+        if menuY + totalH > bounds.height - 12 {
+            menuY = max(anchorRect.minY - totalH - 8, 12)
+        }
+
+        let menuRect = CGRect(x: menuX, y: menuY, width: menuW, height: totalH)
+
+        // 绘制外层立体阴影与背景
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.5)
+        shadow.shadowOffset = NSSize(width: 0, height: -4)
+        shadow.shadowBlurRadius = 10
+        shadow.set()
+
+        let bgPath = NSBezierPath(roundedRect: menuRect, xRadius: 8, yRadius: 8)
+        NSColor(calibratedRed: 0.10, green: 0.13, blue: 0.19, alpha: 0.98).setFill()
+        bgPath.fill()
+        NSGraphicsContext.restoreGraphicsState()
+
+        // 边框
+        ScreenshotPalette.themeAccent.withAlphaComponent(0.4).setStroke()
+        bgPath.lineWidth = 1.0
+        bgPath.stroke()
+
+        // 标题区："将内容翻译为（24 种语言）"
+        let titleRect = CGRect(x: menuX + 12, y: menuY + 7, width: menuW - 24, height: 16)
+        let titleAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+            .foregroundColor: NSColor(white: 0.65, alpha: 1.0)
+        ]
+        ("将内容翻译为（24 种常用世界语言）" as NSString).draw(in: titleRect, withAttributes: titleAttrs)
+
+        // 顶部水平分割线
+        let divY = menuY + headerH
+        let div = NSBezierPath()
+        div.move(to: CGPoint(x: menuX + 8, y: divY))
+        div.line(to: CGPoint(x: menuX + menuW - 8, y: divY))
+        NSColor.white.withAlphaComponent(0.12).setStroke()
+        div.lineWidth = 0.8
+        div.stroke()
+
+        // 两列中间的竖直分割线
+        let midX = menuX + 6 + colW + colGap / 2
+        let vDiv = NSBezierPath()
+        vDiv.move(to: CGPoint(x: midX, y: divY + 6))
+        vDiv.line(to: CGPoint(x: midX, y: menuRect.maxY - 8))
+        NSColor.white.withAlphaComponent(0.08).setStroke()
+        vDiv.lineWidth = 0.8
+        vDiv.stroke()
+
+        // 各语言行（分左右两列）
+        for (idx, lang) in languages.enumerated() {
+            let col = idx < rowsPerCol ? 0 : 1
+            let row = idx % rowsPerCol
+
+            let itemX = menuX + 6 + CGFloat(col) * (colW + colGap)
+            let itemY = divY + 4 + CGFloat(row) * itemH
+            let itemRect = CGRect(x: itemX, y: itemY, width: colW, height: itemH)
+
+            let isHovered = (hoveredToolbarId == "lang_\(lang.code)")
+            let isSelected = (lang.code == selectedTargetLanguage.code)
+
+            if isHovered {
+                let hoverPath = NSBezierPath(roundedRect: itemRect, xRadius: 5, yRadius: 5)
+                NSColor.white.withAlphaComponent(0.14).setFill()
+                hoverPath.fill()
+            }
+
+            // 语言名称文本
+            let textRect = CGRect(x: itemRect.minX + 6, y: itemRect.minY + 4, width: itemRect.width - 24, height: 18)
+            let textAttrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 11.5, weight: isSelected ? .semibold : .regular),
+                .foregroundColor: isSelected ? NSColor.white : NSColor(white: 0.9, alpha: 1.0)
+            ]
+            (lang.name as NSString).draw(in: textRect, withAttributes: textAttrs)
+
+            // 选中对勾 ✓
+            if isSelected {
+                let checkRect = CGRect(x: itemRect.maxX - 16, y: itemRect.minY + 6, width: 12, height: 12)
+                if let checkIcon = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil) {
+                    let conf = NSImage.SymbolConfiguration(pointSize: 9, weight: .bold).applying(.init(hierarchicalColor: NSColor.systemBlue))
+                    let configured = checkIcon.withSymbolConfiguration(conf) ?? checkIcon
+                    configured.draw(in: checkRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+                }
+            }
+
+            // 注册点击事件
+            toolbarHits.append(ToolbarHitItem(id: "lang_\(lang.code)", rect: itemRect, tooltip: "") { [weak self] in
+                guard let self else { return }
+                self.selectedTargetLanguage = lang
+                self.isShowingLanguageMenu = false
+                self.performInPlaceTranslation(forceLanguage: lang)
+                self.needsDisplay = true
+            })
+        }
+    }
+
+    func performInPlaceTranslation(forceLanguage: TranslationService.TargetLanguage? = nil) {
+        guard let sel = selectionRect, sel.width >= 10, sel.height >= 10 else { return }
+
+        commitPendingTextIfNeeded()
+        let reqId = UUID()
+        activeTranslationRequestId = reqId
+        isTranslatingInPlace = true
+        inPlaceTranslationError = nil
+        needsDisplay = true
+
+        let targetLang = forceLanguage ?? selectedTargetLanguage
+
+        // 强行超时保底：最多等待 4.5 秒，绝不允许无限期停在“正在翻译中”！
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) { [weak self] in
+            guard let self, self.activeTranslationRequestId == reqId, self.isTranslatingInPlace else { return }
+            self.isTranslatingInPlace = false
+            self.inPlaceTranslationError = "翻译超时或暂无法识别该语言内容"
+            self.needsDisplay = true
+            self.scheduleErrorAutoDismiss()
+        }
+
+        // 1. 从当前采样底图裁剪选区图片用于 OCR
+        guard let cropImage = ScreenshotRenderer.renderFinalImage(
+            selectionRect: sel,
+            sampler: sampler,
+            annotations: []
+        ) else {
+            isTranslatingInPlace = false
+            inPlaceTranslationError = "无法获取选区图像"
+            needsDisplay = true
+            scheduleErrorAutoDismiss()
+            return
+        }
+
+        // 2. 检测背景色与文字色
+        let (bgColor, textColor) = detectDominantColors(for: sel)
+
+        // 3. 执行 OCR 识别文本
+        ScreenshotManager.recognizeLines(from: cropImage) { [weak self] lines in
+            guard let self, self.activeTranslationRequestId == reqId else { return }
+            let joinedText = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !joinedText.isEmpty else {
+                self.isTranslatingInPlace = false
+                self.inPlaceTranslationError = "未检测到可翻译文本"
+                self.needsDisplay = true
+                self.scheduleErrorAutoDismiss()
+                return
+            }
+
+            // 4. 自动检测源语言
+            let (sourceCode, _) = TranslationService.shared.detectLanguage(for: joinedText)
+
+            let resolvedTarget: TranslationService.TargetLanguage
+            if forceLanguage != nil {
+                resolvedTarget = targetLang
+            } else if sourceCode.hasPrefix("zh") && targetLang.code.hasPrefix("zh") {
+                resolvedTarget = TranslationService.commonTargetLanguages.first(where: { $0.id == "en" }) ?? targetLang
+                self.selectedTargetLanguage = resolvedTarget
+            } else {
+                resolvedTarget = targetLang
+            }
+
+            // 5. 异步调用轻量级 Google/Native 翻译
+            Task {
+                do {
+                    let translated = try await TranslationService.shared.translate(
+                        text: joinedText,
+                        sourceLang: sourceCode,
+                        targetCode: resolvedTarget.code
+                    )
+
+                    await MainActor.run {
+                        guard self.activeTranslationRequestId == reqId else { return }
+                        self.isTranslatingInPlace = false
+                        self.inPlaceTranslationData = InPlaceTranslationData(
+                            sourceText: joinedText,
+                            translatedText: translated,
+                            targetLanguage: resolvedTarget,
+                            dominantBgColor: bgColor,
+                            textColor: textColor
+                        )
+                        self.showTranslationInPlace = true
+                        self.needsDisplay = true
+                    }
+                } catch {
+                    await MainActor.run {
+                        guard self.activeTranslationRequestId == reqId else { return }
+                        self.isTranslatingInPlace = false
+                        self.inPlaceTranslationError = error.localizedDescription
+                        self.needsDisplay = true
+                        self.scheduleErrorAutoDismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func detectDominantColors(for sel: CGRect) -> (bgColor: NSColor, textColor: NSColor) {
+        let samplePoints: [CGPoint] = [
+            CGPoint(x: sel.minX + 4, y: sel.minY + 4),
+            CGPoint(x: sel.maxX - 4, y: sel.minY + 4),
+            CGPoint(x: sel.minX + 4, y: sel.maxY - 4),
+            CGPoint(x: sel.maxX - 4, y: sel.maxY - 4),
+            CGPoint(x: sel.midX, y: sel.minY + 4),
+            CGPoint(x: sel.midX, y: sel.maxY - 4),
+        ]
+
+        var totalLum: CGFloat = 0
+        var totalR: CGFloat = 0, totalG: CGFloat = 0, totalB: CGFloat = 0
+        var validCount: CGFloat = 0
+
+        for pt in samplePoints {
+            let color = sampler.colorAt(viewPoint: pt).nsColor
+            if let rgb = color.usingColorSpace(.deviceRGB) {
+                let lum = 0.299 * rgb.redComponent + 0.587 * rgb.greenComponent + 0.114 * rgb.blueComponent
+                totalLum += lum
+                totalR += rgb.redComponent
+                totalG += rgb.greenComponent
+                totalB += rgb.blueComponent
+                validCount += 1
+            }
+        }
+
+        let avgLum = validCount > 0 ? totalLum / validCount : 1.0
+        let isLight = avgLum > 0.55
+
+        if isLight {
+            let avgR = validCount > 0 ? totalR / validCount : 1.0
+            let avgG = validCount > 0 ? totalG / validCount : 1.0
+            let avgB = validCount > 0 ? totalB / validCount : 1.0
+            let bg = NSColor(calibratedRed: avgR, green: avgG, blue: avgB, alpha: 1.0)
+            let text = NSColor(calibratedRed: 0.11, green: 0.13, blue: 0.16, alpha: 1.0)
+            return (bg, text)
+        } else {
+            let avgR = validCount > 0 ? totalR / validCount : 0.12
+            let avgG = validCount > 0 ? totalG / validCount : 0.12
+            let avgB = validCount > 0 ? totalB / validCount : 0.12
+            let bg = NSColor(calibratedRed: avgR, green: avgG, blue: avgB, alpha: 1.0)
+            let text = NSColor(calibratedRed: 0.94, green: 0.95, blue: 0.97, alpha: 1.0)
+            return (bg, text)
+        }
+    }
+
+    func drawInPlaceTranslation(_ data: InPlaceTranslationData, in sel: CGRect) {
+        data.dominantBgColor.setFill()
+        let bgPath = NSBezierPath(rect: sel)
+        bgPath.fill()
+
+        ScreenshotRenderer.drawInPlaceTranslationText(data.translatedText, textColor: data.textColor, in: sel)
+    }
+
+    func drawTranslatingOverlay(in sel: CGRect) {
+        let badgeW: CGFloat = 140
+        let badgeH: CGFloat = 34
+        let badgeRect = CGRect(x: sel.midX - badgeW / 2, y: sel.midY - badgeH / 2, width: badgeW, height: badgeH)
+        let path = NSBezierPath(roundedRect: badgeRect, xRadius: 8, yRadius: 8)
+        NSColor(calibratedRed: 0.08, green: 0.11, blue: 0.17, alpha: 0.92).setFill()
+        path.fill()
+        ScreenshotPalette.themeAccent.withAlphaComponent(0.6).setStroke()
+        path.lineWidth = 1.0
+        path.stroke()
+
+        let text = "正在翻译中..."
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: NSColor.white
+        ]
+        let textSize = (text as NSString).size(withAttributes: attrs)
+        let textPt = CGPoint(x: badgeRect.midX - textSize.width / 2 + 8, y: badgeRect.midY - textSize.height / 2)
+        (text as NSString).draw(at: textPt, withAttributes: attrs)
+
+        if let icon = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil) {
+            let conf = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
+            let configured = icon.withSymbolConfiguration(conf) ?? icon
+            let iconRect = CGRect(x: textPt.x - 18, y: badgeRect.midY - 6, width: 12, height: 12)
+            configured.draw(in: iconRect)
+        }
+    }
+
+    func drawTranslationErrorOverlay(_ msg: String, in sel: CGRect) {
+        let badgeW: CGFloat = min(max(CGFloat(msg.count) * 13 + 52, 170), sel.width)
+        let badgeH: CGFloat = 34
+        let badgeRect = CGRect(x: sel.midX - badgeW / 2, y: sel.midY - badgeH / 2, width: badgeW, height: badgeH)
+        let path = NSBezierPath(roundedRect: badgeRect, xRadius: 8, yRadius: 8)
+        NSColor(calibratedRed: 0.18, green: 0.08, blue: 0.08, alpha: 0.94).setFill()
+        path.fill()
+        NSColor.systemRed.withAlphaComponent(0.8).setStroke()
+        path.lineWidth = 1.0
+        path.stroke()
+
+        let text = msg
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11.5, weight: .medium),
+            .foregroundColor: NSColor.white
+        ]
+        let textSize = (text as NSString).size(withAttributes: attrs)
+        let textPt = CGPoint(x: badgeRect.midX - textSize.width / 2 + 7, y: badgeRect.midY - textSize.height / 2)
+        (text as NSString).draw(at: textPt, withAttributes: attrs)
+
+        if let icon = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil) {
+            let conf = NSImage.SymbolConfiguration(pointSize: 11, weight: .bold).applying(.init(hierarchicalColor: NSColor.systemOrange))
+            let configured = icon.withSymbolConfiguration(conf) ?? icon
+            let iconRect = CGRect(x: textPt.x - 17, y: badgeRect.midY - 6, width: 12, height: 12)
+            configured.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+        }
+
+        // 注册点击关闭提示
+        toolbarHits.append(ToolbarHitItem(id: "act_dismiss_error", rect: badgeRect, tooltip: "") { [weak self] in
+            guard let self else { return }
+            self.inPlaceTranslationError = nil
+            self.needsDisplay = true
+        })
+    }
+
+    private func scheduleErrorAutoDismiss() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.8) { [weak self] in
+            guard let self, self.inPlaceTranslationError != nil else { return }
+            self.inPlaceTranslationError = nil
+            self.needsDisplay = true
         }
     }
 }

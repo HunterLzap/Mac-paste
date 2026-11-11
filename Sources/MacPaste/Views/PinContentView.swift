@@ -7,6 +7,8 @@ struct PinContentView: View {
     var onToggleCollapse: () -> Void
     var onOpacityChange: (Double) -> Void
     var onTriggerOCR: () -> Void
+    var onTriggerTranslate: () -> Void = {}
+    var onChangeTargetLanguage: (TranslationService.TargetLanguage) -> Void = { _ in }
     var onResizeStart: () -> CGSize
     var onResize: (CGSize, CGSize) -> Void
     var onClose: () -> Void
@@ -14,6 +16,8 @@ struct PinContentView: View {
     @State private var copiedAll = false
     @State private var copiedLineIdx: Int?
     @State private var pastedLineIdx: Int?
+    @State private var copiedTranslation = false
+    @State private var copiedSource = false
     @State private var showOpacityPopover = false
 
     var body: some View {
@@ -190,6 +194,29 @@ struct PinContentView: View {
             .buttonStyle(.plain)
             .help(state.showOCRList ? "切换回原图视图（原图上可直接划词复制）" : "OCR 识别图片中的全部文字并拆分为可复制段落")
 
+            Button {
+                onTriggerTranslate()
+            } label: {
+                HStack(spacing: 3) {
+                    if state.isTranslating {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .scaleEffect(0.6)
+                    } else {
+                        Image(systemName: state.showTranslation ? "photo" : "character.bubble")
+                            .font(.system(size: 10))
+                    }
+                    Text(state.showTranslation ? "看原图" : "翻译")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.teal.opacity(0.18)))
+                .foregroundStyle(Color.teal)
+            }
+            .buttonStyle(.plain)
+            .help(state.showTranslation ? "切换回原图视图" : "自动识别图片中文字并进行多国语言翻译")
+
         case .shortText, .longText:
             if state.paragraphs.count >= 2 && !state.isEditingText {
                 Button {
@@ -209,6 +236,29 @@ struct PinContentView: View {
                 .buttonStyle(.plain)
                 .help(state.showSegments ? "切换为原始完整格式视图（直接划词复制）" : "切换为分段列表视图（带序号与按序粘贴）")
             }
+
+            Button {
+                onTriggerTranslate()
+            } label: {
+                HStack(spacing: 2) {
+                    if state.isTranslating {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .scaleEffect(0.6)
+                    } else {
+                        Image(systemName: state.showTranslation ? "text.alignleft" : "character.bubble")
+                            .font(.system(size: 10))
+                    }
+                    Text(state.showTranslation ? "原文" : "翻译")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.teal.opacity(0.18)))
+                .foregroundStyle(Color.teal)
+            }
+            .buttonStyle(.plain)
+            .help(state.showTranslation ? "切换回原文" : "多国语言智能翻译")
 
             Button {
                 state.isEditingText.toggle()
@@ -244,10 +294,16 @@ struct PinContentView: View {
         }
         switch state.kind {
         case .image:
+            if state.showTranslation {
+                return "截图翻译 · \(state.detectedSourceName) → \(state.selectedTargetLanguage.name)"
+            }
             return state.showOCRList ? "图片文字 (\(state.ocrLines.count) 行)" : "图片贴图 · 可直接划词复制"
         case .table:
             return "表格贴图 · \(state.tableRows.count)×\(state.tableRows.first?.count ?? 0)（双击单元格复制）"
         case .shortText, .longText:
+            if state.showTranslation {
+                return "文本翻译 · \(state.detectedSourceName) → \(state.selectedTargetLanguage.name)"
+            }
             if state.showSegments && state.paragraphs.count >= 2 {
                 return "分段清单 · 共 \(state.paragraphs.count) 段"
             }
@@ -262,7 +318,9 @@ struct PinContentView: View {
     private var contentBody: some View {
         switch state.kind {
         case .shortText, .longText:
-            if state.isEditingText {
+            if state.showTranslation {
+                translationBilingualView
+            } else if state.isEditingText {
                 TextEditor(text: $state.textContent)
                     .font(.system(size: 12.5))
                     .padding(6)
@@ -274,7 +332,9 @@ struct PinContentView: View {
             }
 
         case .image:
-            if state.showOCRList {
+            if state.showTranslation {
+                translationBilingualView
+            } else if state.showOCRList {
                 segmentsListView(lines: state.ocrLines)
             } else if let img = state.image {
                 LiveTextImageView(image: img)
@@ -427,6 +487,228 @@ struct PinContentView: View {
         }
     }
 
+    // MARK: - 截图 / 文本双语翻译卡片视图
+
+    @ViewBuilder
+    private var translationBilingualView: some View {
+        VStack(spacing: 0) {
+            // 1. 语言控制栏（源语言检测 -> 目标语言下拉菜单 + 朗读 + 复制）
+            HStack(spacing: 8) {
+                HStack(spacing: 4) {
+                    Text("源:")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text(state.detectedSourceName)
+                        .font(.system(size: 11, weight: .medium))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1.5)
+                        .background(Capsule().fill(Color.primary.opacity(0.06)))
+                }
+
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+
+                Menu {
+                    ForEach(TranslationService.commonTargetLanguages) { lang in
+                        Button {
+                            onChangeTargetLanguage(lang)
+                        } label: {
+                            HStack {
+                                Text(lang.name)
+                                if lang.code == state.selectedTargetLanguage.code {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(state.selectedTargetLanguage.name)
+                            .font(.system(size: 11, weight: .semibold))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2.5)
+                    .background(Capsule().fill(Color.accentColor.opacity(0.14)))
+                    .foregroundStyle(Color.accentColor)
+                }
+                .menuStyle(.borderlessButton)
+                .help("切换翻译目标语言")
+
+                Spacer()
+
+                if !state.translatedText.isEmpty {
+                    Button {
+                        speak(text: state.translatedText)
+                    } label: {
+                        Image(systemName: "speaker.wave.2")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("朗读译文")
+
+                    Button {
+                        copyTranslation()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: copiedTranslation ? "checkmark" : "doc.on.doc")
+                                .font(.system(size: 10))
+                            Text(copiedTranslation ? "已复制" : "复制译文")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(copiedTranslation ? Color.green.opacity(0.18) : Color.primary.opacity(0.08)))
+                        .foregroundStyle(copiedTranslation ? Color.green : Color.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("复制完整译文到剪贴板")
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.primary.opacity(0.03))
+
+            Divider()
+
+            // 2. 双语对照主体内容
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 10) {
+                    // 原文卡片
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("原文")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button {
+                                speak(text: state.sourceTextForTranslation)
+                            } label: {
+                                Image(systemName: "speaker.wave.1")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("朗读原文")
+
+                            Button {
+                                copySource()
+                            } label: {
+                                Image(systemName: copiedSource ? "checkmark" : "doc.on.doc")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(copiedSource ? Color.green : Color.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("复制原文")
+                        }
+                        Text(state.sourceTextForTranslation.isEmpty ? "（等待识别...）" : state.sourceTextForTranslation)
+                            .font(.system(size: 12))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.primary.opacity(0.04))
+                    )
+
+                    // 译文卡片
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("译文 (\(state.selectedTargetLanguage.name))")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+                            Spacer()
+                        }
+
+                        if state.isTranslating {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("正在翻译中...")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, 14)
+                        } else if let errorMsg = state.translationErrorMessage {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(Color.orange)
+                                    Text("翻译失败: \(errorMsg)")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Button("重试") {
+                                    onTriggerTranslate()
+                                }
+                                .font(.system(size: 11, weight: .medium))
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.mini)
+                            }
+                            .padding(.vertical, 6)
+                        } else {
+                            Text(state.translatedText.isEmpty ? "（无翻译内容）" : state.translatedText)
+                                .font(.system(size: 13, weight: .regular))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.accentColor.opacity(0.08))
+                    )
+                }
+                .padding(8)
+            }
+        }
+    }
+
+    private static let speechSynthesizer = NSSpeechSynthesizer()
+
+    private func speak(text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if Self.speechSynthesizer.isSpeaking {
+            Self.speechSynthesizer.stopSpeaking()
+        } else {
+            Self.speechSynthesizer.startSpeaking(trimmed)
+        }
+    }
+
+    private func copyTranslation() {
+        let text = state.translatedText
+        guard !text.isEmpty else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        if pb.setString(text, forType: .string) {
+            ClipboardMonitor.markInternalWrite(text)
+            copiedTranslation = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                copiedTranslation = false
+            }
+        }
+    }
+
+    private func copySource() {
+        let text = state.sourceTextForTranslation
+        guard !text.isEmpty else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        if pb.setString(text, forType: .string) {
+            ClipboardMonitor.markInternalWrite(text)
+            copiedSource = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                copiedSource = false
+            }
+        }
+    }
+
     private func copySegment(_ text: String) {
         let pb = NSPasteboard.general
         pb.clearContents()
@@ -438,6 +720,12 @@ struct PinContentView: View {
     private func copyAll() {
         let pb = NSPasteboard.general
         pb.clearContents()
+        if state.showTranslation && !state.translatedText.isEmpty {
+            if pb.setString(state.translatedText, forType: .string) {
+                ClipboardMonitor.markInternalWrite(state.translatedText)
+            }
+            return
+        }
         switch state.kind {
         case .image:
             if state.showOCRList, !state.ocrLines.isEmpty {

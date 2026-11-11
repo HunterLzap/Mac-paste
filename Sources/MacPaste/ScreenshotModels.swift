@@ -579,11 +579,71 @@ enum ScreenshotRenderer {
         }
     }
 
+    // MARK: - 原地截图翻译数据与渲染
+
+    struct InPlaceTranslationInfo {
+        let text: String
+        let dominantBgColor: NSColor
+        let textColor: NSColor
+    }
+
+    static func drawInPlaceTranslationText(_ text: String, textColor: NSColor, in sel: CGRect) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let hPad: CGFloat = min(max(sel.width * 0.03, 10), 20)
+        let vPad: CGFloat = min(max(sel.height * 0.04, 8), 16)
+        let textRect = sel.insetBy(dx: hPad, dy: vPad)
+        guard textRect.width > 20, textRect.height > 10 else { return }
+
+        let baseSize: CGFloat = min(max(sel.height * 0.42, 13), 22)
+        var fontSize = baseSize
+        var bestAttrs = makeInPlaceAttributes(fontSize: fontSize, textColor: textColor)
+
+        var measured = (trimmed as NSString).boundingRect(
+            with: CGSize(width: textRect.width, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: bestAttrs
+        )
+        while measured.height > textRect.height && fontSize > 11 {
+            fontSize -= 1.0
+            bestAttrs = makeInPlaceAttributes(fontSize: fontSize, textColor: textColor)
+            measured = (trimmed as NSString).boundingRect(
+                with: CGSize(width: textRect.width, height: CGFloat.greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: bestAttrs
+            )
+        }
+
+        let drawY = max(textRect.minY + (textRect.height - measured.height) / 2, textRect.minY)
+        let drawRect = CGRect(x: textRect.minX, y: drawY, width: textRect.width, height: measured.height)
+
+        (trimmed as NSString).draw(
+            with: drawRect,
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: bestAttrs
+        )
+    }
+
+    private static func makeInPlaceAttributes(fontSize: CGFloat, textColor: NSColor) -> [NSAttributedString.Key: Any] {
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .regular)
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byWordWrapping
+        style.lineSpacing = max(fontSize * 0.22, 3)
+        style.alignment = .left
+        return [
+            .font: font,
+            .foregroundColor: textColor,
+            .paragraphStyle: style
+        ]
+    }
+
     /// 将当前选区与标注合成为高分辨率 NSImage
     static func renderFinalImage(
         selectionRect: CGRect,
         sampler: ScreenBitmapSampler,
-        annotations: [ScreenshotAnnotation]
+        annotations: [ScreenshotAnnotation],
+        inPlaceTranslation: InPlaceTranslationInfo? = nil
     ) -> NSImage? {
         let scale = sampler.scaleFactor
         let pixelRect = CGRect(
@@ -628,6 +688,13 @@ enum ScreenshotRenderer {
             cg.translateBy(x: -selectionRect.minX, y: -selectionRect.minY)
 
             NSGraphicsContext.current = NSGraphicsContext(cgContext: cg, flipped: true)
+
+            // 如果处于原地翻译生效状态，先在底层画出翻译后的背景与文本，替换原屏幕像素！
+            if let trans = inPlaceTranslation {
+                trans.dominantBgColor.setFill()
+                NSBezierPath(rect: selectionRect).fill()
+                drawInPlaceTranslationText(trans.text, textColor: trans.textColor, in: selectionRect)
+            }
 
             for item in annotations {
                 drawAnnotation(item, sampler: sampler)
