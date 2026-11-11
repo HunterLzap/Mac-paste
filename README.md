@@ -2,7 +2,7 @@
 
 # MacPaste
 
-### 纯原生 macOS 剪贴板历史管理器 · 交互式截图标注 · 滚动长截图 · 桌面活贴图
+### 纯原生 macOS 剪贴板历史管理器 · 交互式截图标注 · 截图原地翻译 · 滚动长截图 · 桌面活贴图
 
 **零第三方依赖 · 纯 Swift & SwiftUI 原生实现 · 100% 本地离线与数据私密**
 
@@ -11,16 +11,20 @@
 [![Architecture](https://img.shields.io/badge/Arch-Apple%20Silicon%20%2F%20arm64-1e293b?style=flat-square)](https://support.apple.com/en-us/HT211814)
 [![Dependencies](https://img.shields.io/badge/Dependencies-0%20(Zero)-success?style=flat-square)](Package.swift)
 [![Storage](https://img.shields.io/badge/Storage-SQLite3%20WAL-003B57?style=flat-square&logo=sqlite&logoColor=white)](#-本地存储与去重机制)
+[![Release](https://img.shields.io/github/v/release/HunterLzap/Mac-paste?style=flat-square&color=blue)](https://github.com/HunterLzap/Mac-paste/releases)
 [![License](https://img.shields.io/badge/License-MIT-f4c430?style=flat-square)](LICENSE)
 
 <br />
 
-[快速上手](#-快速上手) · [核心界面与功能详解](#-核心界面与功能详解) · [快捷键与操作速查](#-快捷键与操作速查) · [本地存储与去重机制](#-本地存储与去重机制) · [编译与打包](#-编译与打包) · [隐私与权限说明](#-隐私与权限说明) · [常见问题 (FAQ)](#-常见问题-faq)
+[快速下载与安装](#-快速下载与安装-推荐) · [核心界面与功能详解](#-核心界面与功能详解) · [快捷键与操作速查](#-快捷键与操作速查) · [本地存储与去重机制](#-本地存储与去重机制) · [编译与打包](#-编译与打包) · [隐私与权限说明](#-隐私与权限说明) · [常见问题 (FAQ)](#-常见问题-faq)
 
 <br />
 
 ```bash
-# 编译并生成 MacPaste.app
+# 方式 A：直接前往 Releases 下载开箱即用的预构建应用包
+https://github.com/HunterLzap/Mac-paste/releases
+
+# 方式 B：从源码编译并生成 MacPaste.app
 git clone https://github.com/HunterLzap/Mac-paste.git && cd Mac-paste && bash Scripts/build.sh
 ```
 
@@ -34,7 +38,28 @@ git clone https://github.com/HunterLzap/Mac-paste.git && cd Mac-paste && bash Sc
 
 > [!NOTE]
 > **MacPaste 是一款专注于高频键盘与鼠标交互的原生 macOS 工具。**
-> 采用纯 Swift / SwiftUI 编写，零第三方依赖，单二进制可执行文件体积不足 4MB，内存占用仅数十兆。它将**剪贴板历史、多段按序粘贴、带放大镜与标注工具的全屏截图、镂空直通的滚动长截图、以及带离线 OCR 的桌面置顶活贴图**深度整合在轻量原生面板中。
+> 采用纯 Swift / SwiftUI 编写，零第三方依赖，单二进制可执行文件体积不足 4MB，内存占用仅数十兆。它将**剪贴板历史、多段按序粘贴、带放大镜与标注工具的全屏截图、截图原地替换翻译（24 国语言）、镂空直通的滚动长截图、以及带离线 OCR 的桌面置顶活贴图**深度整合在轻量原生面板中。
+
+---
+
+## 📥 快速下载与安装 (推荐)
+
+如果你不想配置 Xcode 命令行环境，可以直接下载打包好的预构建应用包：
+
+👉 **[前往 GitHub Releases 下载最新版 MacPaste.app (.zip)](https://github.com/HunterLzap/Mac-paste/releases)**
+
+### 安装步骤与 macOS 安全提示解决
+
+1. 下载 `MacPaste-v1.0.0-macOS-arm64.zip` 并双击解压出 `MacPaste.app`。
+2. 将 `MacPaste.app` 拖入「访达 - 应用程序」（`/Applications`）中。
+3. **首次打开说明（macOS Gatekeeper 安全校验）**：
+   - 由于个人独立开源项目未购买 Apple 企业开发者年费证书，macOS 对从浏览器下载的未公证应用会自动打上隔离标记（`apple.quarantine`）。直接双击可能会提示“无法验证开发者”或“已损坏”。
+   - **解决方法（任选一种，仅首次需要授权一次）**：
+     - **方法一（推荐，纯鼠标操作）**：在访达「应用程序」中找到 `MacPaste.app`，**按住 Control 键点击（或鼠标右键点击）**选择「打开」，在随后弹出的窗口中再次点击「打开」即可永久授权运行。
+     - **方法二（终端一键清除隔离标记）**：打开「终端」执行以下命令即可：
+       ```bash
+       xattr -cr /Applications/MacPaste.app
+       ```
 
 ---
 
@@ -95,7 +120,7 @@ MacPaste 默认作为菜单栏常驻应用运行（`LSUIElement = true`，无 Do
 
 ---
 
-### 5. 交互式截图标注 & 亚像素滚动长截图 (`F1`)
+### 5. 交互式截图标注、截图原地翻译 & 亚像素滚动长截图 (`F1`)
 
 #### 全屏交互截图
 - **8 方向控制点**：支持拖拽 8 个边角/边缘手柄调整截图范围。
@@ -106,6 +131,18 @@ MacPaste 默认作为菜单栏常驻应用运行（`LSUIElement = true`，无 Do
   - 样式栏：激活工具时展开 3 级粗细选择（细 2.5 / 中 4.5 / 粗 7.5）以及 8 种调色盘预设颜色。
   - 辅助：支持多次撤销（<kbd>⌘Z</kbd>）、重做（<kbd>⇧⌘Z</kbd>）、一键清空标注。
   - 输出：复制到剪贴板（<kbd>Enter</kbd> / <kbd>⌘C</kbd>）、贴图到桌面（<kbd>F3</kbd>）、保存为 PNG（<kbd>⌘S</kbd>）、提取文字 OCR、进入滚动长截屏、取消（<kbd>Esc</kbd>）。
+
+#### 截图原地智能替换翻译 (支持 24 种常用世界语言)
+- **沉浸式原地替换**：告别传统外弹窗式臃肿翻译，翻译结果直接根据原文字排版在原图选区上进行原地替换渲染，智能擦除背景底色，保持原图视觉一致。
+- **双段式飞书同款操作**：工具栏悬浮 `[ 翻译图标 | ▾ ]` 分割按钮。点击左侧一键翻译为上次语言；点击右侧 `▾` 呼出画布原生双列 24 国语言选择菜单（支持打勾状态记忆与悬停高亮）。
+- **支持 24 种世界主流语言**：
+  - 中文 (简体 / 繁體)、English (英语)、日本語 (日语)、한국어 (韩语)
+  - Bahasa Indonesia (印尼语)、ไทย (泰语)、Tiếng Việt (越南语)、Bahasa Melayu (马来语)
+  - Français (法语)、Español (西班牙语)、Português (葡萄牙语)、Deutsch (德语)、Italiano (意大利语)
+  - العربية (阿拉伯语)、فارسی (波斯语)、Türkçe (土耳其语)、Русский (俄语)、Українська (乌克兰语)
+  - Polski (波兰语)、Nederlands (荷兰语)、Svenska (瑞典语)、Čeština (捷克语)、हिन्दी (印地语)
+- **防卡死与网络超时容错**：内置 4.5 秒硬超时与 3.5 秒网络超时保护，杜绝网络不通时卡在“正在翻译中”；翻译失败或超时自动弹出友好警告重试徽章（点击一键重试，点击选区消除）；翻译过程中可随时再次点击翻译按钮主动取消。
+- **全流程无缝联动**：翻译完成后，可一键按 <kbd>F3</kbd> 钉在桌面最前浮动、按 <kbd>⌘S</kbd> 保存为翻译后图片，或按 <kbd>Enter</kbd> / <kbd>⌘C</kbd> 复制到剪贴板。
 
 #### 亚像素滚动长截图 (Scroll Capture)
 - **选区中间镂空直通**：四边为青色高亮边框，**选区内部 100% 透明穿透**，鼠标滚轮与触控板事件完全直达底层被截取的网页或软件。
@@ -147,6 +184,8 @@ MacPaste 默认作为菜单栏常驻应用运行（`LSUIElement = true`，无 Do
 | <kbd>F3</kbd> | 全局 | 将当前剪贴板内容作为置顶活贴图贴到屏幕上 |
 | <kbd>⇧ Shift</kbd> + <kbd>F3</kbd> | 全局 | 一键隐藏 / 重新显示全部桌面贴图 |
 | <kbd>⌘ Cmd</kbd> + <kbd>V</kbd> | 外部文本框 | **开启卡片「按序粘贴」后**，直接连续按 `⌘V` 自动逐段填充并推进 |
+| 点击工具条 `[ 翻译 ]` | F1 截图进行中 | 原地替换翻译所选文字（自动采样底色、对齐排版） |
+| 点击工具条 `[ ▾ ]` | F1 截图进行中 | 展开原生双列 24 种语言选择下拉菜单（支持实时切换与记忆） |
 | <kbd>C</kbd> | F1 截图进行中 | 复制当前十字准星光标所在位置的十六进制颜色代码 (HEX) |
 | 方向键 <kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> | F1 截图进行中 | 1 像素精确微调当前选区位置（配合 <kbd>Shift</kbd> 调整选区尺寸） |
 | <kbd>空格键</kbd> | 滚动截图进行中 | 启动 / 暂停自动平滑向下滚动截图 |
@@ -201,8 +240,8 @@ chmod +x Scripts/build.sh
 
 ## 🔐 隐私与权限说明
 
-1. **绝对 0 网络通信**：项目源代码中不包含任何网络请求 API、统计分析 SDK 或远程错误追踪探针，不申请网络套接字权限，100% 离线运行。
-2. **离线 OCR 与本地识别**：实况文本划词及 OCR 提取均通过 Apple 原生 Vision / VisionKit 在芯片本地执行，绝不向远程服务器发送图像数据。
+1. **核心数据 100% 本地离线**：剪贴板历史记录、SQLite3 数据库、32×32 像素指纹去重、以及基于 Apple 原生 Vision / VisionKit 的实况文本与离线 OCR 提取均在芯片本地执行，绝不向远程服务器发送图像与剪贴板数据，无任何行为追踪探针。
+2. **截图按需翻译**：仅在用户主动点击截图悬浮工具栏中的「翻译」按钮时，按需调用轻量翻译端点，不收集或留存任何个人隐私与截图原图。
 3. **权限按需申请**：
    - **屏幕录制权限 (Screen Recording)**：用于全屏截图、取色器与滚动截屏捕获屏幕图像（首次截图时由系统弹窗申请）。
    - **辅助功能权限 (Accessibility)**：仅在开启「点击条目即粘贴」或使用「按序粘贴」合成按键时需要（若仅作为剪贴板查看器或复制使用，无需该权限）。
@@ -210,6 +249,14 @@ chmod +x Scripts/build.sh
 ---
 
 ## ❓ 常见问题 (FAQ)
+
+<details>
+<summary><strong>Q: 首次从 GitHub Releases 下载打开提示“无法验证开发者”或“已损坏”怎么办？</strong></summary>
+
+这是 macOS 系统针对未购买每年 $99 苹果企业年费证书的独立开源软件施加的默认 Gatekeeper 安全机制（对下载文件标记 `com.apple.quarantine` 隔离属性）。
+- **解决方法一（最简便，鼠标操作）**：在「访达 - 应用程序」中找到 `MacPaste.app`，**按住键盘 Control 键并单击（或右键）**，选择「打开」，在弹出确认框中点击「打开」即可永久授权。
+- **解决方法二（终端一键解决）**：打开「终端」执行 `xattr -cr /Applications/MacPaste.app` 即可立即双击正常使用。
+</details>
 
 <details>
 <summary><strong>Q: 为什么点击条目粘贴时提示辅助功能未授权？</strong></summary>
