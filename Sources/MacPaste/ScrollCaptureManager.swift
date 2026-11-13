@@ -316,7 +316,7 @@ final class ScrollBorderOverlay {
             )
             p.level = .floating
             p.isOpaque = false
-            p.backgroundColor = NSColor.systemCyan.withAlphaComponent(0.85)
+            p.backgroundColor = ScreenshotPalette.themeAccent.withAlphaComponent(0.85)
             p.hasShadow = false
             p.ignoresMouseEvents = true
             p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -363,11 +363,11 @@ final class ScrollPreviewCardView: NSView {
         ctx.clear(bounds)
 
         let bgPath = CGPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), cornerWidth: 8, cornerHeight: 8, transform: nil)
-        ctx.setFillColor(NSColor(calibratedRed: 0.10, green: 0.12, blue: 0.16, alpha: 0.92).cgColor)
+        ctx.setFillColor(ScreenshotPalette.cardBackground.cgColor)
         ctx.addPath(bgPath)
         ctx.fillPath()
 
-        ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.18).cgColor)
+        ctx.setStrokeColor(ScreenshotPalette.surfaceBorder.cgColor)
         ctx.setLineWidth(1.0)
         ctx.addPath(bgPath)
         ctx.strokePath()
@@ -495,11 +495,11 @@ final class ScrollToolbarView: NSView {
         ctx.clear(bounds)
 
         let bgPath = CGPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), cornerWidth: 8, cornerHeight: 8, transform: nil)
-        ctx.setFillColor(NSColor(calibratedRed: 0.09, green: 0.11, blue: 0.15, alpha: 0.95).cgColor)
+        ctx.setFillColor(ScreenshotPalette.surfaceBackground.cgColor)
         ctx.addPath(bgPath)
         ctx.fillPath()
 
-        ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.18).cgColor)
+        ctx.setStrokeColor(ScreenshotPalette.themeAccent.withAlphaComponent(0.32).cgColor)
         ctx.setLineWidth(1.0)
         ctx.addPath(bgPath)
         ctx.strokePath()
@@ -509,7 +509,7 @@ final class ScrollToolbarView: NSView {
         // 1. 尺寸显示
         let sizeAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .semibold),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.88)
+            .foregroundColor: ScreenshotPalette.primaryText
         ]
         let sSize = (sizeText as NSString).size(withAttributes: sizeAttrs)
         (sizeText as NSString).draw(
@@ -519,7 +519,7 @@ final class ScrollToolbarView: NSView {
         )
 
         // 竖线分隔符
-        ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.18).cgColor)
+        ctx.setStrokeColor(ScreenshotPalette.dividerColor.cgColor)
         ctx.setLineWidth(1.0)
         ctx.move(to: CGPoint(x: 96, y: 7))
         ctx.addLine(to: CGPoint(x: 96, y: 27))
@@ -529,15 +529,15 @@ final class ScrollToolbarView: NSView {
         let isAutoHovered = (hoveredId == "auto")
         let autoBg = CGPath(roundedRect: l.autoBtn, cornerWidth: 5, cornerHeight: 5, transform: nil)
         if isAutoScrolling {
-            ctx.setFillColor(NSColor.systemOrange.withAlphaComponent(isAutoHovered ? 0.35 : 0.22).cgColor)
+            ctx.setFillColor(NSColor.systemOrange.withAlphaComponent(isAutoHovered ? 0.25 : 0.14).cgColor)
         } else {
-            ctx.setFillColor(NSColor.systemCyan.withAlphaComponent(isAutoHovered ? 0.32 : 0.16).cgColor)
+            ctx.setFillColor(ScreenshotPalette.themeAccent.withAlphaComponent(isAutoHovered ? 0.22 : 0.12).cgColor)
         }
         ctx.addPath(autoBg)
         ctx.fillPath()
 
         let autoTitle = isAutoScrolling ? "⏹ 停止" : "▶ 自动"
-        let autoColor: NSColor = isAutoScrolling ? .systemOrange : .systemCyan
+        let autoColor: NSColor = isAutoScrolling ? .systemOrange : ScreenshotPalette.themeAccent
         let autoAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 10.5, weight: .bold),
             .foregroundColor: autoColor
@@ -549,8 +549,8 @@ final class ScrollToolbarView: NSView {
         )
 
         // 3. 纯图标按钮：贴图 F3、保存、取消、完成
-        drawIconButton(rect: l.pinBtn, symbolName: "pin.fill", id: "pin", tint: .white, ptSize: 11)
-        drawIconButton(rect: l.saveBtn, symbolName: "square.and.arrow.down", id: "save", tint: .white, ptSize: 11)
+        drawIconButton(rect: l.pinBtn, symbolName: "pin.fill", id: "pin", tint: ScreenshotPalette.primaryText, ptSize: 11)
+        drawIconButton(rect: l.saveBtn, symbolName: "square.and.arrow.down", id: "save", tint: ScreenshotPalette.primaryText, ptSize: 11)
         drawIconButton(rect: l.cancelBtn, symbolName: "xmark", id: "cancel", tint: .systemRed, ptSize: 11)
         drawIconButton(rect: l.doneBtn, symbolName: "checkmark", id: "done", tint: .systemGreen, ptSize: 12)
 
@@ -579,7 +579,7 @@ final class ScrollToolbarView: NSView {
         let isHov = (hoveredId == id)
         if isHov {
             let p = CGPath(roundedRect: rect, cornerWidth: 5, cornerHeight: 5, transform: nil)
-            ctx.setFillColor(NSColor.white.withAlphaComponent(0.18).cgColor)
+            ctx.setFillColor(ScreenshotPalette.hoverFill.cgColor)
             ctx.addPath(p)
             ctx.fillPath()
         }
@@ -601,7 +601,7 @@ final class ScrollToolbarView: NSView {
     private func drawTooltip(_ text: String, for anchorRect: CGRect) {
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 10, weight: .medium),
-            .foregroundColor: NSColor.white
+            .foregroundColor: ScreenshotPalette.primaryText
         ]
         let s = (text as NSString).size(withAttributes: attrs)
         let padX: CGFloat = 6
@@ -613,9 +613,9 @@ final class ScrollToolbarView: NSView {
         let tipRect = CGRect(x: tipX, y: tipY, width: tipW, height: tipH)
 
         let path = NSBezierPath(roundedRect: tipRect, xRadius: 4, yRadius: 4)
-        NSColor(calibratedWhite: 0.12, alpha: 0.95).setFill()
+        ScreenshotPalette.cardBackground.setFill()
         path.fill()
-        NSColor.white.withAlphaComponent(0.22).setStroke()
+        ScreenshotPalette.surfaceBorder.setStroke()
         path.lineWidth = 0.8
         path.stroke()
 

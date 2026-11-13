@@ -120,6 +120,7 @@ final class PreviewController {
 
     private func show(for item: ClipboardItem) {
         let p = ensurePanel()
+        let wasVisible = p.isVisible
         currentItem = item
         let hosting = PreviewHostingView(rootView: PreviewView(
             item: item,
@@ -131,7 +132,17 @@ final class PreviewController {
         hosting.onMouseExit = { [weak self] in self?.previewMouseExited() }
         p.contentView = hosting
         position(panel: p)
-        p.orderFrontRegardless()
+        if !wasVisible {
+            p.alphaValue = 0
+            p.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.12
+                p.animator().alphaValue = 1
+            }
+        } else {
+            p.alphaValue = 1
+            p.orderFrontRegardless()
+        }
         previewFrame = p.frame
     }
 
@@ -258,8 +269,9 @@ struct PreviewView: View {
                     .padding(.vertical, 2)
                     .background(Capsule().fill(Color.accentColor.opacity(0.14)))
                     .foregroundStyle(Color.accentColor)
+                    .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tactile(cornerRadius: 10, hoverFill: AppTheme.accent.opacity(0.12), pressedScale: 0.93))
                 .help("将此内容作为置顶活贴图贴到屏幕上 (F3)")
 
                 Button {
@@ -276,8 +288,11 @@ struct PreviewView: View {
                         }
                     }
                     .foregroundStyle(copied ? Color.green : Color.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tactile(cornerRadius: 5))
                 .help(copied ? "已复制" : "复制全部内容")
                 if item.pinned {
                     Image(systemName: "pin.fill")
@@ -294,8 +309,9 @@ struct PreviewView: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .windowBackgroundColor)))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.primary.opacity(0.15), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: AppTheme.panelCornerRadius).fill(AppTheme.panelBackground))
+        .overlay(RoundedRectangle(cornerRadius: AppTheme.panelCornerRadius).strokeBorder(AppTheme.strongBorder, lineWidth: 1))
+        .environment(\.colorScheme, .light)
         .overlay(alignment: .bottom) {
             ResizeHandleView(edge: .bottom, onResizeStart: onResizeStart, onResize: onResize)
         }
@@ -420,7 +436,7 @@ struct PreviewView: View {
                                 )
                                 .foregroundStyle(isCopied ? Color.green : Color.primary)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.tactile(cornerRadius: 5, hoverFill: Color.black.opacity(0.06), pressedScale: 0.93))
                             .help("复制第 \(idx + 1) 段")
 
                             Button {
@@ -444,21 +460,21 @@ struct PreviewView: View {
                                 )
                                 .foregroundStyle(isPasted ? Color.green : Color.accentColor)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.tactile(cornerRadius: 5, hoverFill: AppTheme.accentSoft, pressedScale: 0.93))
                             .help("直接粘贴第 \(idx + 1) 段到目标应用")
                         }
                     }
                     .padding(.horizontal, 9)
                     .padding(.vertical, 7)
                     .background(
-                        RoundedRectangle(cornerRadius: 7)
+                        RoundedRectangle(cornerRadius: 8)
                             .fill(isCopied || isPasted
-                                  ? Color.green.opacity(0.08)
-                                  : Color.primary.opacity(0.04))
+                                  ? AppTheme.successGreen.opacity(0.10)
+                                  : AppTheme.cardBackground)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 7)
-                            .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(AppTheme.hairlineBorder, lineWidth: 1)
                     )
                 }
             }

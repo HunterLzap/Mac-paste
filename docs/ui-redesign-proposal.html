@@ -1,0 +1,1896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MacPaste — 整体 UI 迭代设计方案</title>
+  <style>
+    :root {
+      --bg-page: #eef1f6;
+      --bg-panel: rgba(247, 248, 251, 0.92);
+      --bg-card: #ffffff;
+      --bg-card-subtle: #f3f5f9;
+      --bg-hover: rgba(0, 122, 255, 0.08);
+      --bg-selected: rgba(0, 122, 255, 0.13);
+      --border-hairline: rgba(15, 23, 42, 0.09);
+      --border-strong: rgba(15, 23, 42, 0.14);
+      --text-primary: #181c24;
+      --text-secondary: #5e6678;
+      --text-tertiary: #8d95a5;
+      --accent: #007aff;
+      --accent-soft: rgba(0, 122, 255, 0.12);
+      --orange: #ff9500;
+      --green: #28cd41;
+      --red: #ff3b30;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+      --shadow-md: 0 10px 28px rgba(15, 23, 42, 0.10), 0 2px 6px rgba(15, 23, 42, 0.05);
+      --shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.14), 0 4px 14px rgba(15, 23, 42, 0.06);
+      --radius-window: 14px;
+      --radius-card: 10px;
+      --radius-pill: 8px;
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+      --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background:
+        radial-gradient(circle at 15% 10%, rgba(0, 122, 255, 0.08), transparent 36%),
+        radial-gradient(circle at 88% 20%, rgba(52, 199, 89, 0.07), transparent 34%),
+        var(--bg-page);
+      color: var(--text-primary);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 顶部导航 */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      background: rgba(244, 246, 250, 0.82);
+      border-bottom: 1px solid var(--border-hairline);
+    }
+
+    .topbar-inner {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #007aff, #36a1ff);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 16px;
+      box-shadow: 0 4px 12px rgba(0, 122, 255, 0.28);
+    }
+
+    .brand h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .brand p {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      color: var(--text-secondary);
+      font-size: 12.5px;
+      font-weight: 500;
+      padding: 6px 11px;
+      border-radius: 8px;
+      transition: 0.16s ease;
+    }
+
+    .nav-links a:hover {
+      background: rgba(15, 23, 42, 0.06);
+      color: var(--text-primary);
+    }
+
+    /* 主容器 */
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 32px 28px 80px;
+    }
+
+    /* Hero 概览 */
+    .hero {
+      background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(248,250,255,0.9));
+      border: 1px solid var(--border-hairline);
+      border-radius: 20px;
+      padding: 32px;
+      box-shadow: var(--shadow-md);
+      margin-bottom: 36px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+
+    .hero h2 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .hero > p {
+      color: var(--text-secondary);
+      font-size: 14.5px;
+      max-width: 780px;
+      margin-bottom: 24px;
+    }
+
+    .pillars {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 14px;
+    }
+
+    .pillar {
+      background: var(--bg-card);
+      border: 1px solid var(--border-hairline);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .pillar-title {
+      font-size: 13.5px;
+      font-weight: 650;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .pillar p {
+      font-size: 12.5px;
+      color: var(--text-secondary);
+    }
+
+    /* Section 标题 */
+    .section {
+      margin-top: 44px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .section-header h3 {
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+    }
+
+    .section-header p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .tag-hint {
+      font-size: 11.5px;
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 500;
+    }
+
+    /* Design Tokens */
+    .tokens-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+      gap: 12px;
+    }
+
+    .token-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-hairline);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .swatch {
+      width: 38px;
+      height: 38px;
+      border-radius: 9px;
+      border: 1px solid rgba(15, 23, 42, 0.1);
+      flex-shrink: 0;
+    }
+
+    .token-name {
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+
+    .token-val {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    /* 展示舞台 */
+    .stage {
+      background: linear-gradient(180deg, rgba(255,255,255,0.65), rgba(242,245,250,0.75));
+      border: 1px solid var(--border-hairline);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.25fr 0.95fr;
+      gap: 28px;
+      align-items: start;
+    }
+
+    @media (max-width: 960px) {
+      .two-col { grid-template-columns: 1fr; }
+    }
+
+    /* macOS 窗口框 */
+    .mac-window {
+      background: var(--bg-panel);
+      backdrop-filter: blur(24px);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-window);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+    }
+
+    .mac-titlebar {
+      padding: 11px 14px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .traffic-lights {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+    .dot.r { background: #ff5f57; }
+    .dot.y { background: #febc2e; }
+    .dot.g { background: #28c840; }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .search-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(15, 23, 42, 0.055);
+      border: 1px solid rgba(15, 23, 42, 0.06);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      width: 155px;
+    }
+
+    .search-pill input {
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 11.5px;
+      color: var(--text-primary);
+      width: 100%;
+    }
+
+    .icon-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      font-size: 12px;
+      transition: 0.14s ease;
+    }
+
+    .icon-btn:hover { background: rgba(15, 23, 42, 0.07); color: var(--text-primary); }
+    .icon-btn.active-orange { background: rgba(255, 149, 0, 0.15); color: var(--orange); }
+    .icon-btn.active-blue { background: var(--accent-soft); color: var(--accent); }
+
+    /* Segmented Tabs */
+    .segmented {
+      margin: 0 14px 10px;
+      background: rgba(15, 23, 42, 0.055);
+      padding: 3px;
+      border-radius: 9px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 3px;
+    }
+
+    .seg-btn {
+      border: none;
+      background: transparent;
+      padding: 5px 8px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: 0.16s ease;
+    }
+
+    .seg-btn.active {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10);
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border-hairline);
+    }
+
+    /* 剪贴板列表区 */
+    .list-area {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 330px;
+      max-height: 360px;
+      overflow-y: auto;
+    }
+
+    .clip-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-card);
+      padding: 10px 12px;
+      position: relative;
+      transition: 0.15s ease;
+      cursor: pointer;
+    }
+
+    .clip-card:hover {
+      border-color: rgba(0, 122, 255, 0.28);
+      background: #fafcff;
+      box-shadow: 0 3px 10px rgba(0, 122, 255, 0.07);
+    }
+
+    .clip-card.seq-active {
+      background: #f5f9ff;
+      border: 1.5px solid rgba(0, 122, 255, 0.55);
+    }
+
+    .clip-text {
+      font-size: 13px;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+      word-break: break-word;
+    }
+
+    .clip-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .pill-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border: none;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .pill-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .pin-indicator {
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      color: var(--orange);
+      font-size: 11px;
+    }
+
+    .hover-toolbar {
+      position: absolute;
+      right: 10px;
+      bottom: 8px;
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: 0.15s ease;
+      background: rgba(255, 255, 255, 0.94);
+      padding: 2px;
+      border-radius: 7px;
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .clip-card:hover .hover-toolbar { opacity: 1; }
+
+    .mini-act {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .mini-act:hover { background: var(--bg-hover); color: var(--accent); }
+
+    .seq-rows {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .seq-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: 7px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid transparent;
+    }
+
+    .seq-row.current {
+      background: #ffffff;
+      border-color: rgba(0, 122, 255, 0.35);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .seq-row.done { color: var(--text-tertiary); text-decoration: line-through; }
+
+    .seq-num {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .seq-row.current .seq-num { background: var(--accent); color: #fff; }
+    .seq-row.done .seq-num { background: rgba(40, 205, 65, 0.16); color: #199430; }
+    .seq-row:not(.current):not(.done) .seq-num { background: rgba(15, 23, 42, 0.08); color: var(--text-secondary); }
+
+    /* 图片网格 */
+    .img-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .img-cell {
+      background: var(--bg-card);
+      border: 1px solid var(--border-hairline);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      transition: 0.15s ease;
+    }
+
+    .img-cell:hover {
+      border-color: rgba(0, 122, 255, 0.35);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .img-thumb {
+      height: 88px;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .img-foot {
+      padding: 5px 8px;
+      font-size: 10.5px;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      border-top: 1px solid var(--border-hairline);
+    }
+
+    /* 表格卡片 */
+    .mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+      margin-top: 6px;
+      border-radius: 7px;
+      overflow: hidden;
+      border: 1px solid var(--border-hairline);
+    }
+
+    .mini-table th, .mini-table td {
+      padding: 5px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-hairline);
+      border-right: 1px solid var(--border-hairline);
+    }
+
+    .mini-table th {
+      background: #f4f6fa;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .mini-table td.selected-cell {
+      background: rgba(0, 122, 255, 0.12);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .mac-footer {
+      padding: 9px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.45);
+    }
+
+    /* 悬停预览浮窗 */
+    .preview-popover {
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      box-shadow: var(--shadow-lg);
+      padding: 14px;
+    }
+
+    .preview-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 11.5px;
+      color: var(--text-secondary);
+    }
+
+    .preview-body {
+      background: var(--bg-card-subtle);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12.5px;
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    /* 设置弹层 */
+    .settings-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-strong);
+      border-radius: 14px;
+      box-shadow: var(--shadow-lg);
+      padding: 16px;
+      width: 100%;
+    }
+
+    .settings-group {
+      background: var(--bg-card);
+      border: 1px solid var(--border-hairline);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 12.5px;
+    }
+
+    .settings-row + .settings-row {
+      border-top: 1px solid var(--border-hairline);
+    }
+
+    .switch {
+      width: 34px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--accent);
+      position: relative;
+      cursor: pointer;
+    }
+    .switch::after {
+      content: "";
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .switch.off { background: rgba(15, 23, 42, 0.18); }
+    .switch.off::after { right: auto; left: 2px; }
+
+    .kbd {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      background: var(--bg-card-subtle);
+      border: 1px solid var(--border-strong);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      padding: 1px 6px;
+      color: var(--text-primary);
+    }
+
+    /* 截图舞台（浅色风格） */
+    .screenshot-canvas {
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 2px solid var(--accent);
+      background:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.16), rgba(15, 23, 42, 0.22)),
+        repeating-linear-gradient(0deg, #f8fafc 0 28px, #f1f5f9 28px 56px);
+      padding: 28px 24px 120px;
+      min-height: 440px;
+    }
+
+    .selection-box {
+      position: relative;
+      max-width: 640px;
+      margin: 12px auto 0;
+      background: #ffffff;
+      border: 2px solid var(--accent);
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.16), var(--shadow-md);
+      padding: 18px 20px;
+    }
+
+    .size-tag {
+      position: absolute;
+      top: -28px;
+      left: 0;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .handle {
+      position: absolute;
+      width: 9px;
+      height: 9px;
+      background: #fff;
+      border: 2px solid var(--accent);
+      border-radius: 2.5px;
+    }
+    .h-tl { top: -5px; left: -5px; }
+    .h-tr { top: -5px; right: -5px; }
+    .h-bl { bottom: -5px; left: -5px; }
+    .h-br { bottom: -5px; right: -5px; }
+
+    /* 浅色悬浮工具栏 */
+    .snip-toolbar-wrap {
+      max-width: 640px;
+      margin: 10px auto 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      position: relative;
+    }
+
+    .snip-toolbar {
+      background: rgba(248, 250, 253, 0.96);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(0, 122, 255, 0.28);
+      border-radius: 10px;
+      padding: 5px 7px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      box-shadow: var(--shadow-md);
+      flex-wrap: wrap;
+    }
+
+    .snip-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-size: 13px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+
+    .snip-btn:hover { background: rgba(15, 23, 42, 0.07); }
+    .snip-btn.active { background: var(--accent); color: #fff; }
+    .snip-btn.pin { background: #1e96fa; color: #fff; }
+    .snip-btn.done { background: #28c840; color: #fff; }
+    .snip-btn.cancel { color: var(--red); }
+
+    .snip-sep {
+      width: 1px;
+      height: 20px;
+      background: var(--border-hairline);
+      margin: 0 3px;
+    }
+
+    .snip-split {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      overflow: hidden;
+    }
+    .snip-split.active {
+      background: var(--accent-soft);
+      border-color: rgba(0, 122, 255, 0.45);
+    }
+
+    .snip-split button {
+      border: none;
+      background: transparent;
+      height: 28px;
+      padding: 0 7px;
+      cursor: pointer;
+      color: var(--text-primary);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+    }
+    .snip-split.active button { color: var(--accent); font-weight: 600; }
+
+    /* 二级样式栏 */
+    .style-bar {
+      background: rgba(248, 250, 253, 0.96);
+      border: 1px solid var(--border-strong);
+      border-radius: 9px;
+      padding: 5px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: var(--shadow-sm);
+      align-self: flex-start;
+    }
+
+    .w-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .w-dot.sel { background: var(--accent-soft); border: 1px solid rgba(0,122,255,0.5); }
+
+    .c-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1px solid rgba(15,23,42,0.2);
+      cursor: pointer;
+    }
+    .c-dot.sel { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--text-primary); }
+
+    /* 24 语言菜单预览 */
+    .lang-menu {
+      background: rgba(255, 255, 255, 0.98);
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      box-shadow: var(--shadow-lg);
+      width: 300px;
+      padding: 8px;
+      margin-top: 4px;
+    }
+
+    .lang-menu-title {
+      font-size: 11px;
+      color: var(--text-secondary);
+      padding: 2px 6px 6px;
+      border-bottom: 1px solid var(--border-hairline);
+      margin-bottom: 6px;
+    }
+
+    .lang-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 8px;
+    }
+
+    .lang-item {
+      font-size: 11.5px;
+      padding: 4px 7px;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      color: var(--text-primary);
+    }
+
+    .lang-item:hover { background: rgba(15, 23, 42, 0.05); }
+    .lang-item.sel {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* 放大镜卡片 */
+    .loupe {
+      position: absolute;
+      right: 26px;
+      top: 30px;
+      width: 138px;
+      background: rgba(255, 255, 255, 0.98);
+      border: 1.4px solid rgba(0, 122, 255, 0.55);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+    }
+
+    .loupe-pixels {
+      height: 82px;
+      background-image:
+        linear-gradient(to right, rgba(0,0,0,0.06) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0,0,0,0.06) 1px, transparent 1px),
+        linear-gradient(135deg, #e0f2fe 25%, #dbeafe 25% 50%, #f8fafc 50% 75%, #eff6ff 75%);
+      background-size: 10px 10px, 10px 10px, 100% 100%;
+      position: relative;
+    }
+    .loupe-cross-h { position: absolute; left: 0; right: 0; top: 50%; height: 1.5px; background: rgba(0,122,255,0.85); }
+    .loupe-cross-v { position: absolute; top: 0; bottom: 0; left: 50%; width: 1.5px; background: rgba(0,122,255,0.85); }
+    .loupe-info { padding: 6px 8px; font-family: var(--font-mono); font-size: 10.5px; }
+
+    /* 活贴图 & 滚动长截图（Snipaste 无顶栏 + 悬停浮层方案） */
+    .pin-win {
+      position: relative;
+      background: #ffffff;
+      border: 1px solid rgba(15, 23, 42, 0.14);
+      border-radius: 8px;
+      box-shadow: 0 12px 34px rgba(15, 23, 42, 0.16), 0 2px 8px rgba(15, 23, 42, 0.06);
+      overflow: hidden;
+      transition: width 0.22s ease, opacity 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      width: 100%;
+    }
+
+    .pin-win:hover,
+    .pin-win.force-hover {
+      border-color: rgba(0, 122, 255, 0.45);
+      box-shadow: 0 14px 38px rgba(0, 122, 255, 0.14), 0 4px 12px rgba(15, 23, 42, 0.08);
+    }
+
+    .pin-win.narrow { width: 320px; max-width: 100%; }
+    .pin-win.translucent { opacity: 0.72; }
+
+    /* 悬停时才浮现的悬浮控制胶囊（平时完全隐身，零占位） */
+    .pin-floating-bar {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 10;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 5px;
+      border-radius: 9px;
+      background: rgba(248, 250, 253, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(15, 23, 42, 0.11);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+      opacity: 0;
+      transform: translateY(-4px);
+      pointer-events: none;
+      transition: opacity 0.16s ease, transform 0.16s ease;
+    }
+
+    .pin-win:hover .pin-floating-bar,
+    .pin-win.force-hover .pin-floating-bar {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .pin-seg {
+      display: inline-flex;
+      background: rgba(15, 23, 42, 0.06);
+      padding: 2px;
+      border-radius: 7px;
+      gap: 1px;
+    }
+
+    .pin-seg-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 5px;
+      height: 20px;
+      min-width: 24px;
+      padding: 0 6px;
+      font-size: 11px;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: 0.14s ease;
+    }
+
+    .pin-seg-btn:hover { color: var(--text-primary); }
+    .pin-seg-btn.active {
+      background: #ffffff;
+      color: var(--accent);
+      font-weight: 600;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10);
+    }
+
+    .pin-mini-icon {
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 5px;
+      height: 20px;
+      min-width: 20px;
+      padding: 0 4px;
+      font-size: 11px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      transition: 0.14s ease;
+    }
+
+    .pin-mini-icon:hover {
+      background: rgba(15, 23, 42, 0.07);
+      color: var(--text-primary);
+    }
+
+    .pin-demo-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .pin-demo-btn {
+      border: 1px solid var(--border-strong);
+      background: #fff;
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .pin-demo-btn.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: rgba(0, 122, 255, 0.35);
+      font-weight: 600;
+    }
+
+    .pin-body {
+      background: #ffffff;
+      font-size: 12.5px;
+    }
+
+    .pin-raw-shot {
+      padding: 16px 18px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafd 100%);
+    }
+
+    .bilingual-box {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .lang-pane {
+      background: var(--bg-card-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .lang-pane h5 {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    /* 滚动长截图 HUD */
+    .scroll-hud-demo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 20px;
+      background: linear-gradient(135deg, #f0f4fa, #e8eef7);
+      border-radius: 12px;
+      border: 1px solid var(--border-hairline);
+    }
+
+    .scroll-preview-card {
+      width: 140px;
+      background: rgba(255,255,255,0.97);
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      padding: 7px;
+      box-shadow: var(--shadow-md);
+    }
+
+    .scroll-bar {
+      background: rgba(248, 250, 253, 0.97);
+      border: 1px solid rgba(0, 122, 255, 0.30);
+      border-radius: 10px;
+      padding: 5px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: var(--shadow-md);
+      font-size: 11.5px;
+    }
+
+    /* 路线图表格 */
+    .roadmap {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .phase-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-hairline);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .phase-tag {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+
+    .phase-card h4 {
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    .phase-card ul {
+      padding-left: 16px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .note-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-hairline);
+      border-left: 3px solid var(--accent);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .note-box strong { color: var(--text-primary); }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-icon">M</div>
+        <div>
+          <h1>MacPaste · 整体 UI 迭代设计方案</h1>
+          <p>统一浅色毛玻璃（Frosted Paper &amp; Crisp Ink）全模块交互原型预览</p>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <a href="#tokens">设计规范</a>
+        <a href="#clipboard">剪贴板主窗</a>
+        <a href="#settings">设置弹层</a>
+        <a href="#screenshot">截图与原地翻译</a>
+        <a href="#pin">活贴图 &amp; 长截图</a>
+        <a href="#roadmap">迭代路线</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 总览 -->
+    <section class="hero">
+      <div class="hero-badge">MacPaste UI Redesign Proposal · v2.0 概念交互稿</div>
+      <h2>把剪贴板、截图、贴图融为一体化的原生 macOS 浅色工具集</h2>
+      <p>
+        目前 MacPaste 的核心功能已经非常强（按序粘贴、表格区域框选、原地翻译、滚动长截图、可交互活贴图），
+        下一轮 UI 迭代建议聚焦在<strong>视觉语言统一、卡片信息层级降噪、快捷键与状态可感知性提升</strong>，让所有浮窗和面板看起来像同一套原生设计系统。
+      </p>
+      <div class="pillars">
+        <div class="pillar">
+          <div class="pillar-title">1. 统一浅色层级（3 层材质）</div>
+          <p>底栏使用微透浅灰毛玻璃（#F7F8FB），条目使用纯白高光卡片（#FFFFFF）+ 极细描边，浮层菜单带柔和投影，彻底消除各模块色温割裂。</p>
+        </div>
+        <div class="pillar">
+          <div class="pillar-title">2. 卡片信息密度重构</div>
+          <p>剪贴板条目将「来源应用图标 / 类型徽标 / 相对时间」归整为轻量化底行；常驻操作收起，悬停浮现毛玻璃小工具条，视觉更透气。</p>
+        </div>
+        <div class="pillar">
+          <div class="pillar-title">3. 渐进式高级能力引导</div>
+          <p>长文本「按序粘贴」、表格「区域框选」、截图「原地翻译」提供直观状态胶囊与键盘徽章提示（⌘V / F1 / F3），不用记就能用。</p>
+        </div>
+        <div class="pillar">
+          <div class="pillar-title">4. 微交互与统一动效</div>
+          <p>选中卡片轻蓝高亮、复制/粘贴成功瞬间绿闪微反馈、贴图折叠胶囊与透明度滑块统一为紧凑胶囊控件。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Design Tokens -->
+    <section class="section" id="tokens">
+      <div class="section-header">
+        <div>
+          <h3>一、统一 Design Tokens（全局色板与材质）</h3>
+          <p>抽离独立 Theme 常量层，供 SwiftUI 窗口与 AppKit 截图画布共享</p>
+        </div>
+      </div>
+      <div class="tokens-grid">
+        <div class="token-card">
+          <div class="swatch" style="background:#f7f8fb"></div>
+          <div>
+            <div class="token-name">Panel Surface</div>
+            <div class="token-val">#F7F8FB · 92% Blur</div>
+          </div>
+        </div>
+        <div class="token-card">
+          <div class="swatch" style="background:#ffffff"></div>
+          <div>
+            <div class="token-name">Elevated Card</div>
+            <div class="token-val">#FFFFFF · Border 9%</div>
+          </div>
+        </div>
+        <div class="token-card">
+          <div class="swatch" style="background:#007aff"></div>
+          <div>
+            <div class="token-name">Primary Accent</div>
+            <div class="token-val">#007AFF · System Blue</div>
+          </div>
+        </div>
+        <div class="token-card">
+          <div class="swatch" style="background:#ff9500"></div>
+          <div>
+            <div class="token-name">Pin / Active Tint</div>
+            <div class="token-val">#FF9500 · Warm Orange</div>
+          </div>
+        </div>
+        <div class="token-card">
+          <div class="swatch" style="background:#28cd41"></div>
+          <div>
+            <div class="token-name">Success / Done</div>
+            <div class="token-val">#28CD41 · Crisp Green</div>
+          </div>
+        </div>
+        <div class="token-card">
+          <div class="swatch" style="background:#181c24"></div>
+          <div>
+            <div class="token-name">Ink Primary / Sec</div>
+            <div class="token-val">#181C24 / #5E6678</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1. 剪贴板主窗口 & 悬停预览 -->
+    <section class="section" id="clipboard">
+      <div class="section-header">
+        <div>
+          <h3>二、剪贴板主窗口 &amp; 悬停预览浮窗</h3>
+          <p>支持点击切换 4 个分类标签、实时输入搜索过滤、体验「按序粘贴」及表格预览</p>
+        </div>
+        <span class="tag-hint">可交互原型：点击标签页切换视图</span>
+      </div>
+
+      <div class="stage">
+        <div class="two-col">
+          <!-- 主窗口原型 -->
+          <div class="mac-window">
+            <div class="mac-titlebar">
+              <div class="traffic-lights">
+                <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+              </div>
+              <div class="header-actions">
+                <div class="search-pill">
+                  <span>🔍</span>
+                  <input id="clipSearch" type="text" placeholder="搜索历史记录…" oninput="renderClipboard()" />
+                </div>
+                <button class="icon-btn" title="区域截图 (F1)">📷</button>
+                <button class="icon-btn" title="贴到屏幕 (F3)">📌</button>
+                <button class="icon-btn active-orange" title="窗口置顶">📍</button>
+                <button class="icon-btn" title="设置">⚙️</button>
+              </div>
+            </div>
+
+            <div class="segmented" id="clipTabs">
+              <button class="seg-btn active" onclick="switchTab('short', this)">短文本</button>
+              <button class="seg-btn" onclick="switchTab('long', this)">长文本</button>
+              <button class="seg-btn" onclick="switchTab('image', this)">图片</button>
+              <button class="seg-btn" onclick="switchTab('table', this)">表格</button>
+            </div>
+
+            <div class="divider"></div>
+            <div class="list-area" id="clipListArea"></div>
+            <div class="divider"></div>
+
+            <div class="mac-footer">
+              <span id="clipCountText">共 24 条 · 按 Enter 立即粘贴</span>
+              <span style="color: var(--red); font-weight: 500; cursor: pointer;">清空历史</span>
+            </div>
+          </div>
+
+          <!-- 右侧：悬停预览窗 + 改版要点 -->
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="preview-popover">
+              <div class="preview-head">
+                <span><strong>悬停预览浮窗</strong> · 可直接划词选中复制</span>
+                <span class="kbd">拖拽左下角调大小</span>
+              </div>
+              <div class="preview-body" id="previewBody">
+                curl -s "https://api.example.com/v2/status" | jq '.data.healthy'<br />
+                <span style="color: var(--text-secondary); font-size: 11.5px;">字符数：68 · 来源：iTerm2 · 2 分钟前</span>
+              </div>
+            </div>
+
+            <div class="note-box">
+              <strong>主窗口迭代要点：</strong>
+              <span>• <b>短/长文本卡片</b>：从灰底块升级为「纯白圆角卡 + 1px 浅描边」，置顶标签用柔和橙色角标，不再遮挡正文右侧文字。</span>
+              <span>• <b>长文本按序粘贴</b>：每段带编号圆徽章，已粘贴段落自动划掉变灰，当前待粘贴段高亮蓝框，进度一目了然。</span>
+              <span>• <b>图片 3 列网格</b>：卡片底部保留分辨率与相对时间（如 <code>1280×720</code>），悬停浮出快捷「贴图 / 预览 / 删除」胶囊。</span>
+              <span>• <b>表格卡片</b>：折叠态直接展示精简表头 2 行预览，展开后支持拖拽框选单元格并一键「复制选区」。</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 设置弹层 -->
+    <section class="section" id="settings">
+      <div class="section-header">
+        <div>
+          <h3>三、设置弹层（Settings Popover）</h3>
+          <p>将平铺表单重构为 macOS System Settings 风格的分组白底卡片，快捷键使用 Keycap 徽章展示</p>
+        </div>
+      </div>
+
+      <div class="stage">
+        <div class="two-col">
+          <div class="settings-panel">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <strong style="font-size:14.5px;">偏好设置</strong>
+              <span style="font-size:11px; color:var(--text-secondary);">MacPaste v2.0</span>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-row">
+                <span>开机自动启动</span>
+                <div class="switch" onclick="this.classList.toggle('off')"></div>
+              </div>
+              <div class="settings-row">
+                <span>点击条目行为</span>
+                <div style="display:flex; background:#eef1f6; padding:2px; border-radius:7px; gap:2px;">
+                  <span style="background:#fff; padding:2px 10px; border-radius:5px; font-size:11.5px; font-weight:600; box-shadow:var(--shadow-sm);">复制</span>
+                  <span style="padding:2px 10px; font-size:11.5px; color:var(--text-secondary);">粘贴</span>
+                </div>
+              </div>
+              <div class="settings-row">
+                <span>清空历史时包含置顶内容</span>
+                <div class="switch off" onclick="this.classList.toggle('off')"></div>
+              </div>
+              <div class="settings-row">
+                <span>历史条数上限</span>
+                <span style="font-family:var(--font-mono); font-size:12px; background:#f3f5f9; padding:2px 8px; border-radius:6px; border:1px solid var(--border-hairline);">− &nbsp;500&nbsp; +</span>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <div style="font-size:11.5px; font-weight:600; color:var(--text-secondary); margin-bottom:6px;">全局快捷键</div>
+              <div class="settings-row">
+                <span>区域截图（空格切窗口）</span>
+                <span class="kbd">F1</span>
+              </div>
+              <div class="settings-row">
+                <span>贴到屏幕（文字 / 图 / 表）</span>
+                <span class="kbd">F3</span>
+              </div>
+              <div class="settings-row">
+                <span>隐藏 / 显示全部贴图</span>
+                <span><span class="kbd">⇧</span> <span class="kbd">F3</span></span>
+              </div>
+              <div class="settings-row">
+                <span>打开 / 前置剪贴板面板</span>
+                <span><span class="kbd">⌥</span> <span class="kbd">V</span></span>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:8px;">
+              <button style="flex:1; padding:7px; border-radius:8px; border:1px solid var(--border-strong); background:#fff; font-size:12px; font-weight:500; cursor:pointer;">打开独立窗口</button>
+              <button style="flex:1; padding:7px; border-radius:8px; border:1px solid rgba(255,59,48,0.25); background:rgba(255,59,48,0.06); color:var(--red); font-size:12px; font-weight:500; cursor:pointer;">退出 MacPaste</button>
+            </div>
+          </div>
+
+          <div class="note-box">
+            <strong>设置页迭代要点：</strong>
+            <span>• <b>分组卡片化</b>：把行为配置、快捷键说明、窗口操作拆分为清晰区块，视觉呼吸感大幅提升。</span>
+            <span>• <b>权限异常提醒内置</b>：当切换为「自动粘贴」且未授权辅助功能时，卡片底部滑出柔橙色提示条并直达授权设置。</span>
+            <span>• <b>快捷键 Keycap 化</b>：把原来大段纯文本说明改为右对齐键盘键帽，扫一眼就能记住。</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. 截图工具 & 原地翻译 -->
+    <section class="section" id="screenshot">
+      <div class="section-header">
+        <div>
+          <h3>四、区域截图工具 · 原地翻译 &amp; 浅色工具栏</h3>
+          <p>浅色悬浮条与剪贴板完全同源；支持点击「翻译」图标直接原地切换双语，点击下拉箭头展开 24 国语言双栏菜单</p>
+        </div>
+        <span class="tag-hint">可交互原型：点击工具栏「译」切换原文/译文，点「▾」开关语言菜单</span>
+      </div>
+
+      <div class="stage">
+        <div class="screenshot-canvas">
+          <!-- 放大镜取景器 -->
+          <div class="loupe">
+            <div class="loupe-pixels">
+              <div class="loupe-cross-h"></div>
+              <div class="loupe-cross-v"></div>
+            </div>
+            <div class="loupe-info">
+              <div style="color:var(--accent); font-weight:700;">640 × 148</div>
+              <div style="display:flex; align-items:center; gap:5px; margin-top:2px;">
+                <span style="width:10px; height:10px; border-radius:2px; background:#007aff; border:1px solid rgba(0,0,0,0.2); display:inline-block;"></span>
+                <span>#007AFF</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 选区框 -->
+          <div class="selection-box">
+            <div class="size-tag">640 × 148 px</div>
+            <div class="handle h-tl"></div>
+            <div class="handle h-tr"></div>
+            <div class="handle h-bl"></div>
+            <div class="handle h-br"></div>
+
+            <div id="snipPreviewContent">
+              <div style="font-size:12px; color:var(--accent); font-weight:600; margin-bottom:4px;">原地翻译效果（已自动识别英文 → 默认简体中文）</div>
+              <div style="font-size:14px; color:var(--text-primary); line-height:1.6;">
+                MacPaste 将剪贴板历史、轻量截图与屏幕贴图融为一体，让每次复制都成为即取即用的高效工作流。
+              </div>
+            </div>
+          </div>
+
+          <!-- 工具栏 + 二级样式栏 + 语言菜单 -->
+          <div class="snip-toolbar-wrap">
+            <div class="snip-toolbar">
+              <button class="snip-btn active" title="矩形">▭</button>
+              <button class="snip-btn" title="圆框">◯</button>
+              <button class="snip-btn" title="箭头">↗</button>
+              <button class="snip-btn" title="画笔">✎</button>
+              <button class="snip-btn" title="荧光笔">🖍</button>
+              <button class="snip-btn" title="马赛克">▦</button>
+              <button class="snip-btn" title="文字">Aa</button>
+              <div class="snip-sep"></div>
+              <button class="snip-btn" title="撤销">↶</button>
+              <button class="snip-btn" title="重做" style="opacity:0.35">↷</button>
+              <button class="snip-btn" title="清空" style="opacity:0.35">🗑</button>
+              <div class="snip-sep"></div>
+              <button class="snip-btn" title="滚动截图">⇕</button>
+              <button class="snip-btn" title="提取文字">📄</button>
+
+              <div class="snip-split active" id="transSplitBtn">
+                <button onclick="toggleInPlaceTrans()" title="原地翻译 / 显示原图">译</button>
+                <button onclick="toggleLangMenu()" style="border-left:1px solid var(--border-hairline); padding:0 5px;" title="选择目标语言">▾</button>
+              </div>
+
+              <button class="snip-btn" title="保存">⬇</button>
+              <button class="snip-btn pin" title="贴图 (F3)">📌</button>
+              <button class="snip-btn cancel" title="取消">✕</button>
+              <button class="snip-btn done" title="完成复制">✓</button>
+            </div>
+
+            <div style="width:100%; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+              <!-- 二级样式栏 -->
+              <div class="style-bar">
+                <div class="w-dot"><span style="width:4px;height:4px;border-radius:50%;background:var(--text-primary);"></span></div>
+                <div class="w-dot sel"><span style="width:7px;height:7px;border-radius:50%;background:var(--accent);"></span></div>
+                <div class="w-dot"><span style="width:10px;height:10px;border-radius:50%;background:var(--text-primary);"></span></div>
+                <div class="snip-sep" style="height:16px"></div>
+                <span class="c-dot sel" style="background:#ff3b30"></span>
+                <span class="c-dot" style="background:#ff9500"></span>
+                <span class="c-dot" style="background:#ffd100"></span>
+                <span class="c-dot" style="background:#34c759"></span>
+                <span class="c-dot" style="background:#00c7ff"></span>
+                <span class="c-dot" style="background:#007aff"></span>
+                <span class="c-dot" style="background:#af52de"></span>
+                <span class="c-dot" style="background:#ffffff"></span>
+              </div>
+
+              <!-- 24 语言菜单 -->
+              <div class="lang-menu" id="langMenuBox">
+                <div class="lang-menu-title">将内容翻译为（24 种常用世界语言）</div>
+                <div class="lang-cols">
+                  <div class="lang-item sel" onclick="selectLang(this, '简体中文')"><span>简体中文</span><span>✓</span></div>
+                  <div class="lang-item" onclick="selectLang(this, 'ภาษาไทย (泰语)')"><span>ภาษาไทย (泰语)</span><span></span></div>
+                  <div class="lang-item" onclick="selectLang(this, '繁體中文')"><span>繁體中文</span><span></span></div>
+                  <div class="lang-item" onclick="selectLang(this, 'Tiếng Việt (越南语)')"><span>Tiếng Việt</span><span></span></div>
+                  <div class="lang-item" onclick="selectLang(this, 'English')"><span>English</span><span></span></div>
+                  <div class="lang-item" onclick="selectLang(this, 'Deutsch (德语)')"><span>Deutsch (德语)</span><span></span></div>
+                  <div class="lang-item" onclick="selectLang(this, '日本語')"><span>日本語</span><span></span></div>
+                  <div class="lang-item" onclick="selectLang(this, 'Français (法语)')"><span>Français (法语)</span><span></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 活贴图 & 滚动长截图 -->
+    <section class="section" id="pin">
+      <div class="section-header">
+        <div>
+          <h3>五、屏幕活贴图（Snipaste 级无顶栏） &amp; 滚动长截图 HUD</h3>
+          <p>彻底去除常驻顶栏，贴图 100% 还原本来截图画面；仅在鼠标悬停时于右上角浮现半透明浅色操作胶囊，移出即隐身</p>
+        </div>
+        <span class="tag-hint">可交互原型：把鼠标移入贴图即可浮现右上角工具胶囊</span>
+      </div>
+
+      <div class="stage">
+        <div class="two-col">
+          <!-- 活贴图窗口 -->
+          <div>
+            <div class="pin-demo-bar">
+              <button class="pin-demo-btn active" id="btnPinStatic" onclick="setPinDemoState('static')">纯净贴图态（无顶栏）</button>
+              <button class="pin-demo-btn" id="btnPinHover" onclick="setPinDemoState('hover')">悬停浮现态（固定展开）</button>
+              <button class="pin-demo-btn" id="btnPinNarrow" onclick="togglePinNarrow(this)">窄窗预览 (320px)</button>
+            </div>
+
+            <div class="pin-win" id="pinWinDemo">
+              <!-- 悬停时才浮现的右上角操作胶囊 -->
+              <div class="pin-floating-bar">
+                <div class="pin-seg">
+                  <button class="pin-seg-btn active" onclick="switchPinMode('raw', this)" title="原图视图（支持直接划词复制）">🖼</button>
+                  <button class="pin-seg-btn" onclick="switchPinMode('ocr', this)" title="OCR 提取文字">🔍</button>
+                  <button class="pin-seg-btn" onclick="switchPinMode('trans', this)" title="双语对照翻译">译</button>
+                </div>
+                <span style="width:1px; height:14px; background:var(--border-hairline);"></span>
+                <button class="pin-mini-icon" id="pinCopyBtn" onclick="flashPinCopy()" title="复制全部内容">📄</button>
+                <button class="pin-mini-icon" id="pinOpacityBtn" onclick="togglePinOpacity()" title="调整透明度（⌘+滚轮）">◐</button>
+                <button class="pin-mini-icon" style="color:var(--text-secondary);" title="关闭贴图 (Esc)">✕</button>
+              </div>
+
+              <div class="pin-body" id="pinBody">
+                <div class="pin-raw-shot">
+                  <div style="font-size:11px; color:var(--accent); font-weight:600; margin-bottom:6px; letter-spacing:0.02em;">API REFERENCE · V2.0</div>
+                  <div style="font-size:14px; font-weight:650; color:var(--text-primary); margin-bottom:4px;">Select any region on screen</div>
+                  <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.55;">
+                    Translate in-place, extract OCR paragraphs, or pin as a clean floating reference right on your desktop.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:10px; font-size:12px; color:var(--text-secondary);">
+              💡 <b>交互细节</b>：平时零顶栏、零多余文字，整张截图就是全部画面（任意位置可拖动、滚轮缩放、<code>⌘+滚轮</code>调透明度、<code>Esc</code> 关闭）；鼠标移入右上角自动浮出控制胶囊，可一键切 OCR / 双语翻译。
+            </div>
+          </div>
+
+          <!-- 滚动长截图 HUD -->
+          <div class="scroll-hud-demo">
+            <div style="font-size:12px; color:var(--text-secondary); font-weight:500;">滚动长截图浮层（浅色卡片 + 悬浮条）</div>
+            <div class="scroll-preview-card">
+              <div style="height:12px; background:#e2e8f0; border-radius:4px; margin-bottom:6px;"></div>
+              <div style="height:56px; background:linear-gradient(180deg, #eff6ff, #f8fafc); border:1px solid rgba(0,122,255,0.2); border-radius:5px; display:grid; place-items:center; font-size:10.5px; color:var(--accent);">实时拼接预览</div>
+              <div style="height:26px; background:#f1f5f9; border-radius:4px; margin-top:6px;"></div>
+            </div>
+            <div class="scroll-bar">
+              <span style="font-family:var(--font-mono); font-weight:600;">1240 × 3820</span>
+              <span style="width:1px; height:16px; background:var(--border-hairline);"></span>
+              <span style="background:var(--accent-soft); color:var(--accent); font-weight:700; padding:3px 9px; border-radius:6px;">▶ 自动</span>
+              <span>📌</span>
+              <span>⬇</span>
+              <span style="color:var(--red);">✕</span>
+              <span style="color:var(--green); font-weight:700;">✓</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. 迭代落地路线图 -->
+    <section class="section" id="roadmap">
+      <div class="section-header">
+        <div>
+          <h3>六、推荐迭代落地路线（低风险分 3 步推进）</h3>
+          <p>不破坏现有 SwiftUI / AppKit 混合架构，可按阶段平滑升级</p>
+        </div>
+      </div>
+      <div class="roadmap">
+        <div class="phase-card">
+          <div class="phase-tag">Phase 1 · 设计系统抽离</div>
+          <h4>建立统一 `AppTheme` Token 层</h4>
+          <ul>
+            <li>把颜色、圆角、阴影、字体层级统一抽到 <code>AppTheme.swift</code>，让 SwiftUI 与 AppKit 共用同一套浅色语义 Token。</li>
+            <li>为 `NSColor` 与 SwiftUI `Color` 提供一致的 <code>surface / card / hairline / accent</code>。</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <div class="phase-tag">Phase 2 · 剪贴板与设置精修</div>
+          <h4>卡片质感升级 &amp; 信息降噪</h4>
+          <ul>
+            <li>升级 `ItemRowView`、`TableCardView`、`ImageCell` 为纯白圆角卡片 + 极细描边，悬停浮现轻量化操作胶囊。</li>
+            <li>重构 `SettingsView` 为分组白底卡片，快捷键改用 Keycap 键帽排版。</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <div class="phase-tag">Phase 3 · 贴图与截图细节打磨</div>
+          <h4>微动效与视觉收口</h4>
+          <ul>
+            <li>将 `ScreenshotOverlayView` 的图标绘制全部统一为矢量居中渲染，加入更细腻的阴影层次与交互高亮。</li>
+            <li>优化 `PinContentView` 顶部工具胶囊与双语对照卡片间距，统一圆角与分割线。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const mockData = {
+      short: [
+        { text: 'curl -s "https://api.example.com/v2/status" | jq \'.data.healthy\'', meta: '2 分钟前 · iTerm2', pinned: true },
+        { text: 'https://github.com/ryan/Mac-paste/pulls', meta: '14 分钟前 · Safari', pinned: false },
+        { text: 'brew install --cask macpaste', meta: '1 小时前 · Notes', pinned: false },
+        { text: 'selectedTargetLanguage = "zh-Hans"', meta: '今天 10:22 · Xcode', pinned: false }
+      ],
+      long: [
+        {
+          seq: true,
+          steps: [
+            { text: '第一步：打开系统设置 → 隐私与安全性 → 辅助功能', state: 'done' },
+            { text: '第二步：勾选 MacPaste 并确认重新启动应用', state: 'current' },
+            { text: '第三步：按下 ⌥V 呼出历史面板，按 ⌘V 自动逐段粘贴', state: 'todo' }
+          ],
+          meta: '5 分钟前 · 共 3 段'
+        },
+        {
+          seq: false,
+          text: 'MacPaste 是一款专为 macOS 打造的轻量剪贴板历史、区域截图与屏幕贴图工具，支持按序粘贴、表格选区复制及截图原地翻译…',
+          meta: '昨天 18:40 · 共 4 段'
+        }
+      ],
+      image: [
+        { label: '架构图截图', size: '1440×900', bg: 'linear-gradient(135deg,#e0f2fe,#eff6ff)' },
+        { label: '翻译对比图', size: '640×148', bg: 'linear-gradient(135deg,#dcfce7,#f0fdf4)' },
+        { label: '设置界面草图', size: '820×610', bg: 'linear-gradient(135deg,#fef3c7,#fffbeb)' },
+        { label: '长截图产物', size: '1240×3820', bg: 'linear-gradient(135deg,#f3e8ff,#faf5ff)' },
+        { label: '取色色卡', size: '480×320', bg: 'linear-gradient(135deg,#ffe4e6,#fff1f2)' },
+        { label: '图标资源', size: '512×512', bg: 'linear-gradient(135deg,#e2e8f0,#f8fafc)' }
+      ],
+      table: true
+    };
+
+    let currentTab = 'short';
+    let transInPlace = true;
+
+    function switchTab(tab, btn) {
+      currentTab = tab;
+      document.querySelectorAll('#clipTabs .seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderClipboard();
+    }
+
+    function renderClipboard() {
+      const area = document.getElementById('clipListArea');
+      const countText = document.getElementById('clipCountText');
+      const q = (document.getElementById('clipSearch').value || '').toLowerCase();
+
+      if (currentTab === 'short') {
+        const items = mockData.short.filter(i => i.text.toLowerCase().includes(q));
+        countText.textContent = `共 ${items.length} 条短文本 · 点击即复制`;
+        area.innerHTML = items.map(i => `
+          <div class="clip-card" onmouseenter="setPreview('${i.text.replace(/'/g, "\\'")}', '${i.meta}')">
+            ${i.pinned ? '<span class="pin-indicator">📌</span>' : ''}
+            <div class="clip-text">${i.text}</div>
+            <div class="clip-meta"><span>${i.meta}</span></div>
+            <div class="hover-toolbar">
+              <button class="mini-act" title="贴到屏幕">📌</button>
+              <button class="mini-act" title="置顶">★</button>
+              <button class="mini-act" title="删除">🗑</button>
+            </div>
+          </div>
+        `).join('') || '<div style="text-align:center;color:var(--text-tertiary);padding:40px;font-size:12px;">没有匹配结果</div>';
+      } else if (currentTab === 'long') {
+        countText.textContent = '共 2 条长文本 · 支持按序逐段粘贴';
+        area.innerHTML = mockData.long.map(item => {
+          if (item.seq) {
+            return `
+              <div class="clip-card seq-active">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                  <span class="pill-badge">按序 2/3</span>
+                  <span style="font-size:11px; color:var(--text-secondary);">直接按 ⌘V 粘贴第 2 段</span>
+                </div>
+                <div class="seq-rows">
+                  ${item.steps.map((s, idx) => `
+                    <div class="seq-row ${s.state}">
+                      <span class="seq-num">${s.state === 'done' ? '✓' : idx + 1}</span>
+                      <span>${s.text}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `;
+          }
+          return `
+            <div class="clip-card">
+              <div class="clip-text">${item.text}</div>
+              <div class="clip-meta">
+                <span>${item.meta}</span>
+                <button class="pill-btn">≡ 开启按序粘贴</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else if (currentTab === 'image') {
+        countText.textContent = '共 6 张图片 · 悬停可贴图 / Space 预览';
+        area.innerHTML = `<div class="img-grid">${mockData.image.map(img => `
+          <div class="img-cell">
+            <div class="img-thumb" style="background:${img.bg}">${img.label}</div>
+            <div class="img-foot"><span>${img.size}</span><span>📌</span></div>
+          </div>
+        `).join('')}</div>`;
+      } else {
+        countText.textContent = '共 1 份表格 · 支持框选单元格局部复制';
+        area.innerHTML = `
+          <div class="clip-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong style="font-size:12.5px;">⊞ 4 行 × 3 列</strong>
+              <span style="font-size:11px; color:var(--accent); font-weight:600;">已选 2×2 · 复制所选区域</span>
+            </div>
+            <table class="mini-table">
+              <thead><tr><th>功能模块</th><th>默认语言</th><th>界面色调</th></tr></thead>
+              <tbody>
+                <tr><td>剪贴板主窗</td><td class="selected-cell">中文</td><td class="selected-cell">浅色毛玻璃</td></tr>
+                <tr><td>截图翻译</td><td class="selected-cell">简体中文</td><td class="selected-cell">浅色 HUD</td></tr>
+                <tr><td>屏幕贴图</td><td>自动互译</td><td>浅色白卡</td></tr>
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+    }
+
+    function setPreview(text, meta) {
+      document.getElementById('previewBody').innerHTML =
+        `${text}<br><span style="color: var(--text-secondary); font-size: 11.5px;">${meta}</span>`;
+    }
+
+    function toggleInPlaceTrans() {
+      transInPlace = !transInPlace;
+      const box = document.getElementById('snipPreviewContent');
+      const btn = document.getElementById('transSplitBtn');
+      if (transInPlace) {
+        btn.classList.add('active');
+        box.innerHTML = `
+          <div style="font-size:12px; color:var(--accent); font-weight:600; margin-bottom:4px;">原地翻译效果（已自动识别英文 → 默认简体中文）</div>
+          <div style="font-size:14px; color:var(--text-primary); line-height:1.6;">
+            MacPaste 将剪贴板历史、轻量截图与屏幕贴图融为一体，让每次复制都成为即取即用的高效工作流。
+          </div>`;
+      } else {
+        btn.classList.remove('active');
+        box.innerHTML = `
+          <div style="font-size:12px; color:var(--text-secondary); font-weight:600; margin-bottom:4px;">原图文本（点击工具栏「译」即时原地替换）</div>
+          <div style="font-size:14px; color:var(--text-primary); line-height:1.6;">
+            MacPaste unifies clipboard history, lightweight snipping, and screen pinning into one seamless workflow.
+          </div>`;
+      }
+    }
+
+    function toggleLangMenu() {
+      const m = document.getElementById('langMenuBox');
+      m.style.display = (m.style.display === 'none') ? 'block' : 'none';
+    }
+
+    function selectLang(el, name) {
+      document.querySelectorAll('#langMenuBox .lang-item').forEach(i => {
+        i.classList.remove('sel');
+        i.lastElementChild.textContent = '';
+      });
+      el.classList.add('sel');
+      el.lastElementChild.textContent = '✓';
+    }
+
+    function switchPinMode(mode, btn) {
+      document.querySelectorAll('.pin-seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const body = document.getElementById('pinBody');
+      if (mode === 'raw') {
+        body.innerHTML = `
+          <div class="pin-raw-shot">
+            <div style="font-size:11px; color:var(--accent); font-weight:600; margin-bottom:6px; letter-spacing:0.02em;">API REFERENCE · V2.0</div>
+            <div style="font-size:14px; font-weight:650; color:var(--text-primary); margin-bottom:4px;">Select any region on screen</div>
+            <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.55;">
+              Translate in-place, extract OCR paragraphs, or pin as a clean floating reference right on your desktop.
+            </div>
+          </div>`;
+      } else if (mode === 'ocr') {
+        body.innerHTML = `
+          <div style="padding:14px; padding-top:36px; display:flex; flex-direction:column; gap:6px;">
+            <div style="padding:7px 10px; background:var(--bg-card-subtle); border-radius:7px; display:flex; justify-content:space-between; gap:8px;"><span>1. Select any region on screen</span><span style="color:var(--accent);font-size:11px;flex-shrink:0;">复制</span></div>
+            <div style="padding:7px 10px; background:var(--bg-card-subtle); border-radius:7px; display:flex; justify-content:space-between; gap:8px;"><span>2. Translate in-place or pin as card</span><span style="color:var(--accent);font-size:11px;flex-shrink:0;">复制</span></div>
+          </div>`;
+      } else {
+        body.innerHTML = `
+          <div style="padding:14px; padding-top:36px;">
+            <div class="bilingual-box">
+              <div class="lang-pane"><h5>原文（English）</h5><div>Select any region on screen, translate in-place, or pin as an interactive floating card.</div></div>
+              <div class="lang-pane" style="background:#f5f9ff; border-color:rgba(0,122,255,0.25);"><h5 style="color:var(--accent);">译文（简体中文）</h5><div>框选屏幕任意区域，即可原地完成翻译，或将其固定为可交互的悬浮卡片。</div></div>
+            </div>
+          </div>`;
+      }
+    }
+
+    function setPinDemoState(state) {
+      const win = document.getElementById('pinWinDemo');
+      const bStatic = document.getElementById('btnPinStatic');
+      const bHover = document.getElementById('btnPinHover');
+      if (state === 'hover') {
+        win.classList.add('force-hover');
+        bHover.classList.add('active');
+        bStatic.classList.remove('active');
+      } else {
+        win.classList.remove('force-hover');
+        bStatic.classList.add('active');
+        bHover.classList.remove('active');
+      }
+    }
+
+    function togglePinNarrow(btn) {
+      const win = document.getElementById('pinWinDemo');
+      win.classList.toggle('narrow');
+      btn.classList.toggle('active');
+    }
+
+    function togglePinOpacity() {
+      const win = document.getElementById('pinWinDemo');
+      const opBtn = document.getElementById('pinOpacityBtn');
+      const isTranslucent = win.classList.toggle('translucent');
+      opBtn.textContent = isTranslucent ? '◐ 70%' : '◐';
+      opBtn.style.color = isTranslucent ? 'var(--accent)' : '';
+    }
+
+    function flashPinCopy() {
+      const btn = document.getElementById('pinCopyBtn');
+      btn.textContent = '✓';
+      btn.style.color = 'var(--green)';
+      setTimeout(() => {
+        btn.textContent = '📄';
+        btn.style.color = '';
+      }, 700);
+    }
+
+    renderClipboard();
+  </script>
+</body>
+</html>

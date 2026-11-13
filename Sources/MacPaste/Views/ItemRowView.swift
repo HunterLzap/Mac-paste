@@ -24,6 +24,7 @@ struct ItemRowView: View {
             } else {
                 Text(displayTruncate(item.content))
                     .font(.system(size: 13))
+                    .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(item.kind == .longText ? 3 : 1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -32,55 +33,65 @@ struct ItemRowView: View {
                 Text(relativeTimeShort(item.createdAt))
                 if hasMultiParagraphs {
                     Text("· 共 \(item.paragraphs.count) 段")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppTheme.textSecondary)
                     if !isSequential {
                         Button {
-                            viewModel.toggleSequential(item)
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.84)) {
+                                viewModel.toggleSequential(item)
+                            }
                         } label: {
                             HStack(spacing: 3) {
                                 Image(systemName: "list.number")
                                     .font(.system(size: 9))
                                 Text("按序粘贴")
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(.system(size: 10, weight: .semibold))
                             }
-                            .padding(.horizontal, 6)
+                            .padding(.horizontal, 7)
                             .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.accentColor.opacity(0.14)))
-                            .foregroundStyle(Color.accentColor)
+                            .background(Capsule().fill(AppTheme.accentSoft))
+                            .foregroundStyle(AppTheme.accent)
+                            .contentShape(Capsule())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.tactile(cornerRadius: 10, hoverFill: AppTheme.accent.opacity(0.10), pressedScale: 0.93))
                         .help("开启按顺序逐段粘贴（开启后直接按 ⌘V 或点卡片依次粘贴下一段）")
                     }
                 }
                 Spacer()
             }
             .font(.caption2)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(AppTheme.textSecondary)
         }
-        .padding(10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius)
                 .fill(isFlashing
-                      ? Color.green.opacity(0.22)
+                      ? AppTheme.successGreen.opacity(0.18)
                       : (isSequential
-                         ? Color.accentColor.opacity(hovering ? 0.16 : 0.10)
-                         : (hovering ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.05))))
+                         ? AppTheme.selectedCardBackground
+                         : (hovering ? AppTheme.cardHoverBackground : AppTheme.cardBackground)))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(isSequential ? Color.accentColor.opacity(0.65) : Color.clear, lineWidth: 1.5)
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius)
+                .strokeBorder(
+                    isSequential
+                        ? AppTheme.accent.opacity(0.55)
+                        : (hovering ? AppTheme.accent.opacity(0.30) : AppTheme.hairlineBorder),
+                    lineWidth: isSequential ? 1.5 : 1.0
+                )
         )
+        .shadow(color: Color.black.opacity(hovering ? 0.06 : 0.03), radius: hovering ? 5 : 2, y: 1)
         .overlay(alignment: .topTrailing) {
             if item.pinned && !isSequential {
                 Image(systemName: "pin.fill")
                     .font(.system(size: 9))
-                    .foregroundStyle(.orange)
-                    .padding(6)
+                    .foregroundStyle(AppTheme.pinOrange)
+                    .padding(7)
             }
         }
-        .overlay(alignment: .trailing) {
+        .overlay(alignment: .bottomTrailing) {
             if hovering && !isSequential {
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     if hasMultiParagraphs {
                         actionButton(icon: "list.number", help: "开启按顺序粘贴", action: {
                             viewModel.toggleSequential(item)
@@ -89,15 +100,29 @@ struct ItemRowView: View {
                     actionButton(icon: "pip.enter", help: "贴到屏幕 (F3)", action: {
                         viewModel.pin(item)
                     })
-                    actionButton(icon: "pin", help: item.pinned ? "取消置顶（此条消息）" : "置顶（此条消息）", action: onPin)
+                    actionButton(icon: item.pinned ? "pin.slash" : "pin", help: item.pinned ? "取消置顶（此条消息）" : "置顶（此条消息）", action: onPin)
                     actionButton(icon: "trash", help: "删除", action: onDelete)
                 }
+                .padding(3)
+                .background(
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(Color.white.opacity(0.95))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7)
+                        .strokeBorder(AppTheme.hairlineBorder, lineWidth: 0.8)
+                )
+                .shadow(color: Color.black.opacity(0.06), radius: 3, y: 1)
                 .padding(.trailing, 8)
+                .padding(.bottom, 6)
+                .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .bottomTrailing)))
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
         .onHover { h in
-            hovering = h
+            withAnimation(.easeOut(duration: 0.14)) {
+                hovering = h
+            }
             if h {
                 PreviewController.shared.schedulePreview(for: item)
             } else {
@@ -196,17 +221,23 @@ struct ItemRowView: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(AppTheme.textSecondary)
                 .frame(width: 18, height: 18)
-                .background(Circle().fill(Color(nsColor: .windowBackgroundColor).opacity(0.85)))
+                .background(Circle().fill(AppTheme.cardSubtleBackground))
+                .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile(cornerRadius: 9, hoverFill: Color.black.opacity(0.07), pressedScale: 0.90))
         .help(help)
     }
 
     private func triggerFlash() {
-        clickedFlash = true
+        withAnimation(.easeOut(duration: 0.12)) {
+            clickedFlash = true
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            clickedFlash = false
+            withAnimation(.easeOut(duration: 0.18)) {
+                clickedFlash = false
+            }
         }
     }
 }
@@ -224,7 +255,7 @@ struct ImageCell: View {
     @State private var clickedFlash = false
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 0) {
             Group {
                 if let path = item.thumbPath, let img = ImageStore.cachedThumb(at: path) {
                     Image(nsImage: img)
@@ -233,38 +264,60 @@ struct ImageCell: View {
                 } else {
                     Image(systemName: "photo")
                         .font(.system(size: 28))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 100)
-            Text(item.content)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .padding(6)
-        .background(RoundedRectangle(cornerRadius: 8)
-            .fill(clickedFlash
-                  ? Color.green.opacity(0.22)
-                  : (hovering ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.05))))
-        .overlay(alignment: .topLeading) {
-            if item.pinned {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.orange)
-                    .padding(5)
+            .frame(height: 92)
+            .padding(6)
+
+            Divider()
+                .overlay(AppTheme.hairlineBorder)
+
+            HStack(spacing: 4) {
+                Text(item.content)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
+                Spacer(minLength: 2)
+                if item.pinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(AppTheme.pinOrange)
+                }
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(AppTheme.cardSubtleBackground.opacity(0.55))
         }
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius)
+                .fill(clickedFlash
+                      ? AppTheme.successGreen.opacity(0.18)
+                      : (hovering ? AppTheme.cardHoverBackground : AppTheme.cardBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius)
+                .strokeBorder(hovering ? AppTheme.accent.opacity(0.35) : AppTheme.hairlineBorder, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
+        .shadow(color: Color.black.opacity(hovering ? 0.06 : 0.03), radius: hovering ? 4 : 2, y: 1)
         .overlay(alignment: .topTrailing) {
             if hovering {
                 actionButton(icon: "pip.enter", help: "贴到屏幕 (F3)", action: onSticker)
+                    .padding(4)
+                    .background(Circle().fill(Color.white.opacity(0.95)))
+                    .overlay(Circle().strokeBorder(AppTheme.hairlineBorder, lineWidth: 0.8))
+                    .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
                     .padding(5)
+                    .transition(.opacity.combined(with: .scale(scale: 0.88)))
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
         .onHover { h in
-            hovering = h
+            withAnimation(.easeOut(duration: 0.14)) {
+                hovering = h
+            }
             if h {
                 PreviewController.shared.schedulePreview(for: item)
             } else {
@@ -272,9 +325,9 @@ struct ImageCell: View {
             }
         }
         .onTapGesture {
-            clickedFlash = true
+            withAnimation(.easeOut(duration: 0.12)) { clickedFlash = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                clickedFlash = false
+                withAnimation(.easeOut(duration: 0.18)) { clickedFlash = false }
             }
             onActivate()
         }
@@ -294,10 +347,11 @@ struct ImageCell: View {
 func actionButton(icon: String, help: String, action: @escaping () -> Void) -> some View {
     Button(action: action) {
         Image(systemName: icon)
-            .font(.system(size: 10))
-            .frame(width: 20, height: 20)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(AppTheme.textSecondary)
+            .frame(width: 21, height: 21)
+            .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
-    .background(Circle().fill(Color(nsColor: .windowBackgroundColor)))
+    .buttonStyle(.tactile(cornerRadius: 5, hoverFill: Color.black.opacity(0.07), pressedScale: 0.90))
     .help(help)
 }

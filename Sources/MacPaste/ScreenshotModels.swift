@@ -309,9 +309,21 @@ struct ScreenshotPalette {
         ("粗", 7.5),
     ]
 
-    /// 截图模式主题亮色（青蓝高亮）
-    static let themeAccent = NSColor(calibratedRed: 0.00, green: 0.78, blue: 1.00, alpha: 1.0)
-    static let themeGlow = NSColor(calibratedRed: 0.00, green: 0.82, blue: 1.00, alpha: 0.38)
+    /// 截图模式主题强调色（与剪贴板浅色系及 macOS 系统蓝保持一致）
+    static let themeAccent = NSColor(calibratedRed: 0.00, green: 0.48, blue: 1.00, alpha: 1.0)
+    static let themeGlow = NSColor(calibratedRed: 0.00, green: 0.48, blue: 1.00, alpha: 0.24)
+
+    /// 浅色 HUD 视觉色板（与剪贴板主窗口浅灰白面板风格一致）
+    static let surfaceBackground = NSColor(calibratedRed: 0.975, green: 0.980, blue: 0.990, alpha: 0.96)
+    static let cardBackground = NSColor(calibratedRed: 0.995, green: 0.997, blue: 1.000, alpha: 0.98)
+    static let surfaceBorder = NSColor.black.withAlphaComponent(0.12)
+    static let dividerColor = NSColor.black.withAlphaComponent(0.10)
+    static let primaryText = NSColor(calibratedWhite: 0.14, alpha: 1.0)
+    static let secondaryText = NSColor(calibratedWhite: 0.46, alpha: 1.0)
+    static let disabledIcon = NSColor.black.withAlphaComponent(0.26)
+    static let hoverFill = NSColor.black.withAlphaComponent(0.06)
+    static let selectedSoftFill = NSColor(calibratedRed: 0.00, green: 0.48, blue: 1.00, alpha: 0.14)
+    static let screenMask = NSColor(calibratedRed: 0.10, green: 0.14, blue: 0.22, alpha: 0.26)
 }
 
 // MARK: - 屏幕像素采样器（用于实时放大镜预览与色值提取、马赛克取色）

@@ -86,7 +86,7 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
     var isTranslatingInPlace: Bool = false
     var inPlaceTranslationData: InPlaceTranslationData?
     var inPlaceTranslationError: String?
-    var selectedTargetLanguage: TranslationService.TargetLanguage = TranslationService.commonTargetLanguages.first(where: { $0.id == "en" }) ?? TranslationService.commonTargetLanguages[1]
+    var selectedTargetLanguage: TranslationService.TargetLanguage = TranslationService.commonTargetLanguages.first(where: { $0.id == "zh-Hans" }) ?? TranslationService.commonTargetLanguages[0]
     var isShowingLanguageMenu: Bool = false
     var currentTransButtonRect: CGRect = .zero
     private var activeTranslationRequestId: UUID?
@@ -175,8 +175,8 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
             ctx.restoreGState()
         }
 
-        // 2. 绘制截图状态暗色遮罩（选区外半透明深蓝黑遮罩，选区内 100% 清晰）
-        let maskColor = NSColor(calibratedRed: 0.03, green: 0.07, blue: 0.14, alpha: 0.48)
+        // 2. 绘制截图状态浅灰柔光遮罩（选区外轻量半透明遮罩，选区内 100% 清晰）
+        let maskColor = ScreenshotPalette.screenMask
         if let sel = selectionRect, sel.width > 1, sel.height > 1 {
             let maskPath = NSBezierPath(rect: bounds)
             maskPath.append(NSBezierPath(rect: sel))
@@ -343,13 +343,45 @@ extension ScreenshotCanvasView {
         path.stroke()
     }
 
+    /// 浅色浮层公共背景绘制（带轻量立体投影与细边框，与剪贴板浅色系一致）
+    private func drawLightPanel(
+        in rect: CGRect,
+        cornerRadius: CGFloat,
+        fill: NSColor = ScreenshotPalette.surfaceBackground,
+        border: NSColor = ScreenshotPalette.surfaceBorder,
+        borderWidth: CGFloat = 1.0,
+        shadowAlpha: CGFloat = 0.15,
+        shadowBlur: CGFloat = 8.0
+    ) {
+        let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(shadowAlpha)
+        shadow.shadowOffset = NSSize(width: 0, height: -3)
+        shadow.shadowBlurRadius = shadowBlur
+        shadow.set()
+        fill.setFill()
+        path.fill()
+        NSGraphicsContext.restoreGraphicsState()
+
+        border.setStroke()
+        path.lineWidth = borderWidth
+        path.stroke()
+    }
+
+    private func isLightColor(_ color: NSColor) -> Bool {
+        guard let c = color.usingColorSpace(.deviceRGB) else { return false }
+        let lum = 0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent
+        return lum > 0.72
+    }
+
     /// 顶部简短轻提示胶囊（仅在复制色值等操作时短暂浮现，平时不显示任何冗余文字）
     func drawTopStatusBanner() {
         guard let toast = toastMessage else { return }
         let fullText = "✓ \(toast)"
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
-            .foregroundColor: NSColor.white,
+            .foregroundColor: ScreenshotPalette.primaryText,
         ]
         let textSize = (fullText as NSString).size(withAttributes: attrs)
         let padX: CGFloat = 14
@@ -363,13 +395,13 @@ extension ScreenshotCanvasView {
             height: pillH
         )
 
-        let bgPath = NSBezierPath(roundedRect: pillRect, xRadius: pillH / 2, yRadius: pillH / 2)
-        NSColor(calibratedRed: 0.06, green: 0.11, blue: 0.20, alpha: 0.90).setFill()
-        bgPath.fill()
-
-        ScreenshotPalette.themeAccent.withAlphaComponent(0.9).setStroke()
-        bgPath.lineWidth = 1.5
-        bgPath.stroke()
+        drawLightPanel(
+            in: pillRect,
+            cornerRadius: pillH / 2,
+            fill: ScreenshotPalette.cardBackground,
+            border: ScreenshotPalette.themeAccent.withAlphaComponent(0.45),
+            borderWidth: 1.2
+        )
 
         (fullText as NSString).draw(
             at: CGPoint(x: pillRect.minX + padX, y: pillRect.minY + padY),
@@ -421,7 +453,7 @@ extension ScreenshotCanvasView {
         let sizeText = "\(pw) × \(ph)"
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),
-            .foregroundColor: NSColor.white,
+            .foregroundColor: ScreenshotPalette.primaryText,
         ]
         let tSize = (sizeText as NSString).size(withAttributes: attrs)
         let tagW = tSize.width + 12
@@ -430,12 +462,15 @@ extension ScreenshotCanvasView {
         let tagY = sel.minY >= tagH + 10 ? (sel.minY - tagH - 6) : (sel.minY + 6)
         let tagRect = CGRect(x: tagX, y: tagY, width: tagW, height: tagH)
 
-        let tagPath = NSBezierPath(roundedRect: tagRect, xRadius: 5, yRadius: 5)
-        NSColor(calibratedRed: 0.06, green: 0.11, blue: 0.19, alpha: 0.90).setFill()
-        tagPath.fill()
-        accent.withAlphaComponent(0.75).setStroke()
-        tagPath.lineWidth = 1.2
-        tagPath.stroke()
+        drawLightPanel(
+            in: tagRect,
+            cornerRadius: 5,
+            fill: ScreenshotPalette.cardBackground,
+            border: ScreenshotPalette.surfaceBorder,
+            borderWidth: 1.0,
+            shadowAlpha: 0.12,
+            shadowBlur: 5.0
+        )
 
         (sizeText as NSString).draw(
             at: CGPoint(x: tagRect.minX + 6, y: tagRect.minY + 3),
@@ -468,10 +503,17 @@ extension ScreenshotCanvasView {
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
 
-        // 外框背景
+        // 外框背景（浅色卡片）
         let outerPath = NSBezierPath(roundedRect: loupeRect, xRadius: 9, yRadius: 9)
-        NSColor(calibratedRed: 0.07, green: 0.10, blue: 0.16, alpha: 0.96).setFill()
+        NSGraphicsContext.saveGraphicsState()
+        let loupeShadow = NSShadow()
+        loupeShadow.shadowColor = NSColor.black.withAlphaComponent(0.16)
+        loupeShadow.shadowOffset = NSSize(width: 0, height: -3)
+        loupeShadow.shadowBlurRadius = 8
+        loupeShadow.set()
+        ScreenshotPalette.cardBackground.setFill()
         outerPath.fill()
+        NSGraphicsContext.restoreGraphicsState()
 
         // 顶部放大镜像素区
         NSGraphicsContext.saveGraphicsState()
@@ -546,21 +588,21 @@ extension ScreenshotCanvasView {
         let swatchRect = CGRect(x: lx + 8, y: ly + imgH + 22, width: 12, height: 12)
         pixelInfo.nsColor.setFill()
         NSBezierPath(roundedRect: swatchRect, xRadius: 2.5, yRadius: 2.5).fill()
-        NSColor.white.withAlphaComponent(0.7).setStroke()
+        NSColor.black.withAlphaComponent(0.22).setStroke()
         NSBezierPath(roundedRect: swatchRect, xRadius: 2.5, yRadius: 2.5).stroke()
 
         let hexAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: 10.5, weight: .medium),
-            .foregroundColor: NSColor.white,
+            .foregroundColor: ScreenshotPalette.primaryText,
         ]
         (pixelInfo.hex as NSString).draw(
             at: CGPoint(x: lx + 24, y: ly + imgH + 21),
             withAttributes: hexAttrs
         )
 
-        // 放大镜高亮外边框
-        ScreenshotPalette.themeAccent.withAlphaComponent(0.9).setStroke()
-        outerPath.lineWidth = 1.8
+        // 放大镜浅色卡片外边框
+        ScreenshotPalette.themeAccent.withAlphaComponent(0.55).setStroke()
+        outerPath.lineWidth = 1.4
         outerPath.stroke()
     }
 
@@ -572,7 +614,7 @@ extension ScreenshotCanvasView {
            let ann = annotations.first(where: { $0.id == hovId }) {
             let rect = ann.boundingRect.insetBy(dx: -3, dy: -3)
             let hoverPath = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
-            NSColor.white.withAlphaComponent(0.45).setStroke()
+            ScreenshotPalette.themeAccent.withAlphaComponent(0.55).setStroke()
             hoverPath.lineWidth = 1.0
             hoverPath.setLineDash([4, 3], count: 2, phase: 0)
             hoverPath.stroke()
@@ -702,12 +744,15 @@ extension ScreenshotCanvasView {
         }
 
         let mainRect = CGRect(x: barX, y: barY, width: mainBarW, height: mainBarH)
-        let mainBg = NSBezierPath(roundedRect: mainRect, xRadius: 8, yRadius: 8)
-        NSColor(calibratedRed: 0.08, green: 0.11, blue: 0.17, alpha: 0.95).setFill()
-        mainBg.fill()
-        ScreenshotPalette.themeAccent.withAlphaComponent(0.55).setStroke()
-        mainBg.lineWidth = 1.2
-        mainBg.stroke()
+        drawLightPanel(
+            in: mainRect,
+            cornerRadius: 8,
+            fill: ScreenshotPalette.surfaceBackground,
+            border: ScreenshotPalette.themeAccent.withAlphaComponent(0.32),
+            borderWidth: 1.0,
+            shadowAlpha: 0.16,
+            shadowBlur: 10.0
+        )
 
         var cursorX = mainRect.minX + 6
         let btnY = mainRect.minY + 4
@@ -804,7 +849,7 @@ extension ScreenshotCanvasView {
             symbolName: "arrow.up.and.down.square",
             tooltip: "滚动截图",
             isSelected: false,
-            accentColor: .systemCyan,
+            accentColor: ScreenshotPalette.themeAccent,
             isEnabled: true
         ) { [weak self] in
             self?.startScrollCapture()
@@ -834,13 +879,13 @@ extension ScreenshotCanvasView {
 
         let transBg = NSBezierPath(roundedRect: transRect, xRadius: 6, yRadius: 6)
         if isTransActive {
-            NSColor.systemBlue.withAlphaComponent(0.28).setFill()
+            ScreenshotPalette.selectedSoftFill.setFill()
             transBg.fill()
-            NSColor.systemBlue.withAlphaComponent(0.65).setStroke()
+            ScreenshotPalette.themeAccent.withAlphaComponent(0.55).setStroke()
             transBg.lineWidth = 1.0
             transBg.stroke()
         } else if hoveredToolbarId?.hasPrefix("act_translate") == true {
-            NSColor.white.withAlphaComponent(0.12).setFill()
+            ScreenshotPalette.hoverFill.setFill()
             transBg.fill()
         }
 
@@ -887,13 +932,13 @@ extension ScreenshotCanvasView {
         ))
 
         // 绘制主图标 (translate SF symbol)
-        let iconColor: NSColor = isTransActive ? NSColor.systemBlue : (isTranslating ? NSColor.systemTeal : NSColor(white: 0.9, alpha: 1.0))
+        let iconColor: NSColor = isTransActive ? ScreenshotPalette.themeAccent : (isTranslating ? NSColor.systemTeal : ScreenshotPalette.primaryText)
         if let icon = NSImage(systemSymbolName: "translate", accessibilityDescription: nil) {
             let conf = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium).applying(.init(hierarchicalColor: iconColor))
             let configured = icon.withSymbolConfiguration(conf) ?? icon
             let center = CGPoint(x: iconSubRect.midX, y: iconSubRect.midY)
             let drawR = CGRect(x: center.x - 7, y: center.y - 7, width: 14, height: 14)
-            configured.draw(in: drawR, from: .zero, operation: .sourceOver, fraction: 1.0)
+            configured.draw(in: drawR, from: .zero, operation: .sourceOver, fraction: 1.0, respectFlipped: true, hints: nil)
         }
 
         // 绘制中间细分割线
@@ -901,18 +946,18 @@ extension ScreenshotCanvasView {
         let divPath = NSBezierPath()
         divPath.move(to: CGPoint(x: divX, y: transRect.minY + 6))
         divPath.line(to: CGPoint(x: divX, y: transRect.maxY - 6))
-        NSColor.white.withAlphaComponent(0.2).setStroke()
+        ScreenshotPalette.dividerColor.setStroke()
         divPath.lineWidth = 1.0
         divPath.stroke()
 
         // 绘制下拉箭头 chevron.down / chevron.up
         let chevSymbol = isShowingLanguageMenu ? "chevron.up" : "chevron.down"
         if let chev = NSImage(systemSymbolName: chevSymbol, accessibilityDescription: nil) {
-            let conf = NSImage.SymbolConfiguration(pointSize: 8, weight: .bold)
+            let conf = NSImage.SymbolConfiguration(pointSize: 8, weight: .bold).applying(.init(hierarchicalColor: ScreenshotPalette.secondaryText))
             let configured = chev.withSymbolConfiguration(conf) ?? chev
             let center = CGPoint(x: chevronSubRect.midX, y: chevronSubRect.midY)
             let drawR = CGRect(x: center.x - 4, y: center.y - 4, width: 8, height: 8)
-            configured.draw(in: drawR, from: .zero, operation: .sourceOver, fraction: 0.85)
+            configured.draw(in: drawR, from: .zero, operation: .sourceOver, fraction: 0.9, respectFlipped: true, hints: nil)
         }
 
         cursorX += transBtnW + 2
@@ -999,16 +1044,20 @@ extension ScreenshotCanvasView {
             }()
             let styleY = mainRect.maxY + 6
             let styleRect = CGRect(x: styleX, y: styleY, width: styleBarW, height: styleBarH)
-            let styleBg = NSBezierPath(roundedRect: styleRect, xRadius: 7, yRadius: 7)
-            NSColor(calibratedRed: 0.08, green: 0.11, blue: 0.17, alpha: 0.95).setFill()
-            styleBg.fill()
-
             let borderColor = isMosaicActive
-                ? ScreenshotPalette.themeAccent.withAlphaComponent(0.65)
-                : ScreenshotPalette.colors[selectedColorIndex].color.withAlphaComponent(0.7)
-            borderColor.setStroke()
-            styleBg.lineWidth = 1.2
-            styleBg.stroke()
+                ? ScreenshotPalette.themeAccent.withAlphaComponent(0.35)
+                : (isLightColor(ScreenshotPalette.colors[selectedColorIndex].color)
+                   ? ScreenshotPalette.surfaceBorder
+                   : ScreenshotPalette.colors[selectedColorIndex].color.withAlphaComponent(0.45))
+            drawLightPanel(
+                in: styleRect,
+                cornerRadius: 7,
+                fill: ScreenshotPalette.surfaceBackground,
+                border: borderColor,
+                borderWidth: 1.0,
+                shadowAlpha: 0.14,
+                shadowBlur: 8.0
+            )
 
             var sx = styleRect.minX + 8
             let sy = styleRect.minY + 4
@@ -1021,13 +1070,13 @@ extension ScreenshotCanvasView {
                 let isHov = (hoveredToolbarId == "width_\(idx)")
                 let path = NSBezierPath(roundedRect: wRect, xRadius: 4, yRadius: 4)
                 if isSel {
-                    ScreenshotPalette.themeAccent.withAlphaComponent(0.35).setFill()
+                    ScreenshotPalette.selectedSoftFill.setFill()
                     path.fill()
-                    ScreenshotPalette.themeAccent.setStroke()
+                    ScreenshotPalette.themeAccent.withAlphaComponent(0.75).setStroke()
                     path.lineWidth = 1.0
                     path.stroke()
                 } else if isHov {
-                    NSColor.white.withAlphaComponent(0.12).setFill()
+                    ScreenshotPalette.hoverFill.setFill()
                     path.fill()
                 }
 
@@ -1038,7 +1087,7 @@ extension ScreenshotCanvasView {
                     width: dotRadius * 2,
                     height: dotRadius * 2
                 )
-                (isSel ? ScreenshotPalette.themeAccent : NSColor.white).setFill()
+                (isSel ? ScreenshotPalette.themeAccent : ScreenshotPalette.primaryText).setFill()
                 NSBezierPath(ovalIn: dotRect).fill()
 
                 let tipText = isMosaicActive ? "马赛克大小: \(item.label)" : "画笔粗细: \(item.label)"
@@ -1076,12 +1125,15 @@ extension ScreenshotCanvasView {
                     circle.fill()
 
                     if selectedColorIndex == idx {
-                        NSColor.white.setStroke()
+                        ScreenshotPalette.primaryText.setStroke()
                         let ring = NSBezierPath(ovalIn: cRect)
-                        ring.lineWidth = 2.2
+                        ring.lineWidth = 2.0
                         ring.stroke()
+                        NSColor.black.withAlphaComponent(0.15).setStroke()
+                        circle.lineWidth = 0.8
+                        circle.stroke()
                     } else {
-                        NSColor.white.withAlphaComponent(0.35).setStroke()
+                        NSColor.black.withAlphaComponent(0.20).setStroke()
                         circle.lineWidth = 1.0
                         circle.stroke()
                     }
@@ -1126,22 +1178,27 @@ extension ScreenshotCanvasView {
         let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
 
         if isSelected {
-            accentColor.withAlphaComponent(0.88).setFill()
+            accentColor.withAlphaComponent(0.92).setFill()
             path.fill()
+            if isLightColor(accentColor) {
+                ScreenshotPalette.surfaceBorder.setStroke()
+                path.lineWidth = 1.0
+                path.stroke()
+            }
         } else if isHovered && isEnabled {
-            NSColor.white.withAlphaComponent(0.18).setFill()
+            ScreenshotPalette.hoverFill.setFill()
             path.fill()
         }
 
         let symbolColor: NSColor
         if !isEnabled {
-            symbolColor = NSColor.white.withAlphaComponent(0.25)
+            symbolColor = ScreenshotPalette.disabledIcon
         } else if isSelected {
-            symbolColor = .white
+            symbolColor = isLightColor(accentColor) ? ScreenshotPalette.primaryText : .white
         } else if isHovered {
-            symbolColor = accentColor
+            symbolColor = isLightColor(accentColor) ? ScreenshotPalette.primaryText : accentColor
         } else {
-            symbolColor = .white
+            symbolColor = ScreenshotPalette.primaryText
         }
 
         let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
@@ -1165,7 +1222,7 @@ extension ScreenshotCanvasView {
     private func drawToolbarTooltip(_ text: String, forButtonRect btnRect: CGRect, toolbarRect: CGRect) {
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: NSColor.white,
+            .foregroundColor: ScreenshotPalette.primaryText,
         ]
         let textSize = (text as NSString).size(withAttributes: attrs)
         let padX: CGFloat = 8
@@ -1182,18 +1239,21 @@ extension ScreenshotCanvasView {
         }
 
         let tipRect = CGRect(x: tipX, y: tipY, width: tipW, height: tipH)
-        let tipPath = NSBezierPath(roundedRect: tipRect, xRadius: 5, yRadius: 5)
-        NSColor(calibratedRed: 0.10, green: 0.13, blue: 0.20, alpha: 0.96).setFill()
-        tipPath.fill()
-        NSColor.white.withAlphaComponent(0.25).setStroke()
-        tipPath.lineWidth = 1.0
-        tipPath.stroke()
+        drawLightPanel(
+            in: tipRect,
+            cornerRadius: 5,
+            fill: ScreenshotPalette.cardBackground,
+            border: ScreenshotPalette.surfaceBorder,
+            borderWidth: 1.0,
+            shadowAlpha: 0.14,
+            shadowBlur: 6.0
+        )
 
         (text as NSString).draw(at: CGPoint(x: tipX + padX, y: tipY + padY), withAttributes: attrs)
     }
 
     private func drawToolbarDivider(at x: CGFloat, minY: CGFloat, height: CGFloat) {
-        NSColor.white.withAlphaComponent(0.18).setStroke()
+        ScreenshotPalette.dividerColor.setStroke()
         let p = NSBezierPath()
         p.lineWidth = 1.0
         p.move(to: CGPoint(x: x, y: minY))
@@ -1820,7 +1880,9 @@ extension ScreenshotCanvasView {
         let tf = NSTextField(frame: NSRect(x: pt.x, y: pt.y - 4, width: 220, height: fontSize + 14))
         tf.font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
         tf.textColor = color
-        tf.backgroundColor = NSColor(calibratedRed: 0.08, green: 0.11, blue: 0.16, alpha: 0.85)
+        tf.backgroundColor = isLightColor(color)
+            ? NSColor(calibratedWhite: 0.18, alpha: 0.88)
+            : ScreenshotPalette.cardBackground.withAlphaComponent(0.95)
         tf.drawsBackground = true
         tf.isBordered = false
         tf.wantsLayer = true
@@ -2004,29 +2066,22 @@ extension ScreenshotCanvasView {
 
         let menuRect = CGRect(x: menuX, y: menuY, width: menuW, height: totalH)
 
-        // 绘制外层立体阴影与背景
-        NSGraphicsContext.saveGraphicsState()
-        let shadow = NSShadow()
-        shadow.shadowColor = NSColor.black.withAlphaComponent(0.5)
-        shadow.shadowOffset = NSSize(width: 0, height: -4)
-        shadow.shadowBlurRadius = 10
-        shadow.set()
-
-        let bgPath = NSBezierPath(roundedRect: menuRect, xRadius: 8, yRadius: 8)
-        NSColor(calibratedRed: 0.10, green: 0.13, blue: 0.19, alpha: 0.98).setFill()
-        bgPath.fill()
-        NSGraphicsContext.restoreGraphicsState()
-
-        // 边框
-        ScreenshotPalette.themeAccent.withAlphaComponent(0.4).setStroke()
-        bgPath.lineWidth = 1.0
-        bgPath.stroke()
+        // 绘制外层立体阴影与浅色卡片背景
+        drawLightPanel(
+            in: menuRect,
+            cornerRadius: 8,
+            fill: ScreenshotPalette.cardBackground,
+            border: ScreenshotPalette.surfaceBorder,
+            borderWidth: 1.0,
+            shadowAlpha: 0.18,
+            shadowBlur: 12.0
+        )
 
         // 标题区："将内容翻译为（24 种语言）"
         let titleRect = CGRect(x: menuX + 12, y: menuY + 7, width: menuW - 24, height: 16)
         let titleAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: NSColor(white: 0.65, alpha: 1.0)
+            .foregroundColor: ScreenshotPalette.secondaryText
         ]
         ("将内容翻译为（24 种常用世界语言）" as NSString).draw(in: titleRect, withAttributes: titleAttrs)
 
@@ -2035,7 +2090,7 @@ extension ScreenshotCanvasView {
         let div = NSBezierPath()
         div.move(to: CGPoint(x: menuX + 8, y: divY))
         div.line(to: CGPoint(x: menuX + menuW - 8, y: divY))
-        NSColor.white.withAlphaComponent(0.12).setStroke()
+        ScreenshotPalette.dividerColor.setStroke()
         div.lineWidth = 0.8
         div.stroke()
 
@@ -2044,7 +2099,7 @@ extension ScreenshotCanvasView {
         let vDiv = NSBezierPath()
         vDiv.move(to: CGPoint(x: midX, y: divY + 6))
         vDiv.line(to: CGPoint(x: midX, y: menuRect.maxY - 8))
-        NSColor.white.withAlphaComponent(0.08).setStroke()
+        ScreenshotPalette.dividerColor.setStroke()
         vDiv.lineWidth = 0.8
         vDiv.stroke()
 
@@ -2060,9 +2115,13 @@ extension ScreenshotCanvasView {
             let isHovered = (hoveredToolbarId == "lang_\(lang.code)")
             let isSelected = (lang.code == selectedTargetLanguage.code)
 
-            if isHovered {
+            if isSelected {
+                let selPath = NSBezierPath(roundedRect: itemRect, xRadius: 5, yRadius: 5)
+                ScreenshotPalette.selectedSoftFill.setFill()
+                selPath.fill()
+            } else if isHovered {
                 let hoverPath = NSBezierPath(roundedRect: itemRect, xRadius: 5, yRadius: 5)
-                NSColor.white.withAlphaComponent(0.14).setFill()
+                ScreenshotPalette.hoverFill.setFill()
                 hoverPath.fill()
             }
 
@@ -2070,7 +2129,7 @@ extension ScreenshotCanvasView {
             let textRect = CGRect(x: itemRect.minX + 6, y: itemRect.minY + 4, width: itemRect.width - 24, height: 18)
             let textAttrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 11.5, weight: isSelected ? .semibold : .regular),
-                .foregroundColor: isSelected ? NSColor.white : NSColor(white: 0.9, alpha: 1.0)
+                .foregroundColor: isSelected ? ScreenshotPalette.themeAccent : ScreenshotPalette.primaryText
             ]
             (lang.name as NSString).draw(in: textRect, withAttributes: textAttrs)
 
@@ -2078,9 +2137,9 @@ extension ScreenshotCanvasView {
             if isSelected {
                 let checkRect = CGRect(x: itemRect.maxX - 16, y: itemRect.minY + 6, width: 12, height: 12)
                 if let checkIcon = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil) {
-                    let conf = NSImage.SymbolConfiguration(pointSize: 9, weight: .bold).applying(.init(hierarchicalColor: NSColor.systemBlue))
+                    let conf = NSImage.SymbolConfiguration(pointSize: 9, weight: .bold).applying(.init(hierarchicalColor: ScreenshotPalette.themeAccent))
                     let configured = checkIcon.withSymbolConfiguration(conf) ?? checkIcon
-                    configured.draw(in: checkRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+                    configured.draw(in: checkRect, from: .zero, operation: .sourceOver, fraction: 1.0, respectFlipped: true, hints: nil)
                 }
             }
 
@@ -2250,24 +2309,25 @@ extension ScreenshotCanvasView {
         let badgeW: CGFloat = 140
         let badgeH: CGFloat = 34
         let badgeRect = CGRect(x: sel.midX - badgeW / 2, y: sel.midY - badgeH / 2, width: badgeW, height: badgeH)
-        let path = NSBezierPath(roundedRect: badgeRect, xRadius: 8, yRadius: 8)
-        NSColor(calibratedRed: 0.08, green: 0.11, blue: 0.17, alpha: 0.92).setFill()
-        path.fill()
-        ScreenshotPalette.themeAccent.withAlphaComponent(0.6).setStroke()
-        path.lineWidth = 1.0
-        path.stroke()
+        drawLightPanel(
+            in: badgeRect,
+            cornerRadius: 8,
+            fill: ScreenshotPalette.cardBackground,
+            border: ScreenshotPalette.themeAccent.withAlphaComponent(0.45),
+            borderWidth: 1.0
+        )
 
         let text = "正在翻译中..."
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: NSColor.white
+            .foregroundColor: ScreenshotPalette.primaryText
         ]
         let textSize = (text as NSString).size(withAttributes: attrs)
         let textPt = CGPoint(x: badgeRect.midX - textSize.width / 2 + 8, y: badgeRect.midY - textSize.height / 2)
         (text as NSString).draw(at: textPt, withAttributes: attrs)
 
         if let icon = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil) {
-            let conf = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
+            let conf = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium).applying(.init(hierarchicalColor: ScreenshotPalette.themeAccent))
             let configured = icon.withSymbolConfiguration(conf) ?? icon
             let iconRect = CGRect(x: textPt.x - 18, y: badgeRect.midY - 6, width: 12, height: 12)
             configured.draw(in: iconRect)
@@ -2278,17 +2338,18 @@ extension ScreenshotCanvasView {
         let badgeW: CGFloat = min(max(CGFloat(msg.count) * 13 + 52, 170), sel.width)
         let badgeH: CGFloat = 34
         let badgeRect = CGRect(x: sel.midX - badgeW / 2, y: sel.midY - badgeH / 2, width: badgeW, height: badgeH)
-        let path = NSBezierPath(roundedRect: badgeRect, xRadius: 8, yRadius: 8)
-        NSColor(calibratedRed: 0.18, green: 0.08, blue: 0.08, alpha: 0.94).setFill()
-        path.fill()
-        NSColor.systemRed.withAlphaComponent(0.8).setStroke()
-        path.lineWidth = 1.0
-        path.stroke()
+        drawLightPanel(
+            in: badgeRect,
+            cornerRadius: 8,
+            fill: ScreenshotPalette.cardBackground,
+            border: NSColor.systemRed.withAlphaComponent(0.55),
+            borderWidth: 1.0
+        )
 
         let text = msg
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11.5, weight: .medium),
-            .foregroundColor: NSColor.white
+            .foregroundColor: ScreenshotPalette.primaryText
         ]
         let textSize = (text as NSString).size(withAttributes: attrs)
         let textPt = CGPoint(x: badgeRect.midX - textSize.width / 2 + 7, y: badgeRect.midY - textSize.height / 2)
@@ -2298,7 +2359,7 @@ extension ScreenshotCanvasView {
             let conf = NSImage.SymbolConfiguration(pointSize: 11, weight: .bold).applying(.init(hierarchicalColor: NSColor.systemOrange))
             let configured = icon.withSymbolConfiguration(conf) ?? icon
             let iconRect = CGRect(x: textPt.x - 17, y: badgeRect.midY - 6, width: 12, height: 12)
-            configured.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+            configured.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1.0, respectFlipped: true, hints: nil)
         }
 
         // 注册点击关闭提示

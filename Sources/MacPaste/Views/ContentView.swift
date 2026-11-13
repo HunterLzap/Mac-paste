@@ -10,6 +10,8 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            header
+
             if viewModel.accessibilityDenied {
                 HStack(spacing: 8) {
                     Image(systemName: "lock.shield")
@@ -41,8 +43,6 @@ struct ContentView: View {
                 }
             }
 
-            header
-
             Picker("分类", selection: $viewModel.tab) {
                 ForEach(ClipboardKind.allCases, id: \.self) { kind in
                     Text(kind.tabTitle).tag(kind)
@@ -51,34 +51,43 @@ struct ContentView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .padding(.horizontal, 14)
+            .padding(.top, 2)
             .padding(.bottom, 10)
 
             Divider()
+                .overlay(AppTheme.hairlineBorder)
 
             HistoryListView(viewModel: viewModel)
 
             Divider()
+                .overlay(AppTheme.hairlineBorder)
 
             HStack {
                 Text("共 \(viewModel.totalCount) 条")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppTheme.textSecondary)
                 Spacer()
                 Button("清空历史") {
                     viewModel.showClearConfirm = true
                 }
                 .font(.caption)
-                .buttonStyle(.plain)
-                .foregroundStyle(.red.opacity(0.85))
+                .foregroundStyle(AppTheme.dangerRed.opacity(0.85))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .contentShape(Rectangle())
+                .buttonStyle(.tactile(cornerRadius: 5, hoverFill: AppTheme.dangerRed.opacity(0.10)))
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.vertical, 9)
+            .background(Color.white.opacity(0.55))
         }
         .frame(minWidth: PanelController.minSize.width,
                maxWidth: .infinity,
                minHeight: PanelController.minSize.height,
                maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(AppTheme.panelBackground)
+        .ignoresSafeArea(.container, edges: .top)
+        .environment(\.colorScheme, .light)
         .onAppear {
             searchFocused = true
             viewModel.reload()
@@ -99,14 +108,26 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - 一体化头部
+    // MARK: - 一体化头部（直接融入红绿灯标题栏行）
 
-    /// 单行头部：右对齐 [搜索按钮] [置顶] [设置]；点搜索按钮后搜索框向左滑出。
-    /// 左侧为悬浮红绿灯留出空间（标题栏已一体化）。
+    /// 与红绿灯同处于顶部标题栏行：左侧为红绿灯占位 + 标题（搜索收起时），右侧为操作按钮组；中间空白均可直接拖动窗口。
     private var header: some View {
-        HStack(spacing: 6) {
-            Color.clear.frame(width: 62, height: 1)
-            Spacer(minLength: 0)
+        HStack(spacing: 5) {
+            WindowDragArea()
+                .frame(width: 72, height: 38)
+
+            if !searchExpanded {
+                Text("MacPaste")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
+                    .allowsHitTesting(false)
+                    .background(WindowDragArea())
+            }
+
+            WindowDragArea()
+                .frame(minWidth: 8, maxWidth: .infinity, minHeight: 38, maxHeight: 38)
+
             if searchExpanded {
                 HStack(spacing: 4) {
                     Image(systemName: "magnifyingglass")
@@ -127,12 +148,19 @@ struct ContentView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 9)
                 .padding(.vertical, 4)
-                .background(Capsule().fill(Color.primary.opacity(0.06)))
-                .frame(maxWidth: searchExpanded ? 170 : 0)
-                .clipped()
-                .transition(.opacity)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.92))
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(AppTheme.hairlineBorder, lineWidth: 1)
+                )
+                .frame(maxWidth: 165)
+                .layoutPriority(-1)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
             headerButton(icon: "magnifyingglass", active: searchExpanded, help: "搜索") {
                 toggleSearch()
@@ -159,10 +187,8 @@ struct ContentView: View {
                 SettingsView(viewModel: viewModel)
             }
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
+        .padding(.trailing, 10)
+        .frame(height: 38)
         .animation(.spring(response: 0.22, dampingFraction: 0.85), value: searchExpanded)
     }
 
@@ -178,15 +204,19 @@ struct ContentView: View {
         }
     }
 
-    private func headerButton(icon: String, active: Bool, activeTint: Color = .accentColor, help: String, action: @escaping () -> Void) -> some View {
+    private func headerButton(icon: String, active: Bool, activeTint: Color = AppTheme.accent, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 13))
-                .foregroundStyle(active ? activeTint : Color.secondary)
-                .frame(width: 22, height: 22)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(active ? activeTint : AppTheme.textSecondary)
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(active ? activeTint.opacity(0.13) : Color.clear)
+                )
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile(cornerRadius: 6, hoverFill: active ? activeTint.opacity(0.18) : Color.black.opacity(0.06)))
         .help(help)
     }
 }

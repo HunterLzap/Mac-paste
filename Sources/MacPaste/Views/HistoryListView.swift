@@ -6,15 +6,18 @@ struct HistoryListView: View {
 
     var body: some View {
         if viewModel.items.isEmpty {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 Image(systemName: viewModel.searchText.isEmpty ? "tray" : "magnifyingglass")
-                    .font(.system(size: 30))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 26, weight: .light))
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .frame(width: 56, height: 56)
+                    .background(Circle().fill(Color.white.opacity(0.85)))
+                    .overlay(Circle().strokeBorder(AppTheme.hairlineBorder, lineWidth: 1))
                 Text(viewModel.searchText.isEmpty
                      ? "暂无历史记录\n复制的内容会自动出现在这里"
                      : "没有匹配的结果")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

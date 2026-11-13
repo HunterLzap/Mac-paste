@@ -31,27 +31,36 @@ struct TableCardView: View {
                 preview
             }
         }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 8)
-            .fill(hovering && !expanded ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.04)))
+        .padding(11)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius)
+                .fill(hovering && !expanded ? AppTheme.cardHoverBackground : AppTheme.cardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius)
+                .strokeBorder(hovering && !expanded ? AppTheme.accent.opacity(0.30) : AppTheme.hairlineBorder, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(hovering ? 0.06 : 0.03), radius: hovering ? 4 : 2, y: 1)
         .overlay(alignment: .topTrailing) {
             if item.pinned {
                 Image(systemName: "pin.fill")
                     .font(.system(size: 9))
-                    .foregroundStyle(.orange)
-                    .padding(6)
+                    .foregroundStyle(AppTheme.pinOrange)
+                    .padding(7)
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
         .onHover { h in
-            hovering = h
+            withAnimation(.easeOut(duration: 0.14)) {
+                hovering = h
+            }
             if h && !expanded {
                 PreviewController.shared.schedulePreview(for: item)
             } else if !h {
                 PreviewController.shared.itemMouseExited()
             }
         }
-        .onTapGesture { withAnimation(.easeOut(duration: 0.12)) { expanded.toggle() } }
+        .onTapGesture { withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) { expanded.toggle() } }
         .contextMenu {
             Button("复制整表") { viewModel.copy(item) }
             Button("粘贴整表") { viewModel.paste(item) }
@@ -101,13 +110,14 @@ struct TableCardView: View {
                     ForEach(0..<min(6, displayCols), id: \.self) { c in
                         Text(cell(r, c))
                             .font(.system(size: 11))
+                            .foregroundStyle(AppTheme.textPrimary)
                             .lineLimit(1)
-                            .frame(width: 74, height: 20, alignment: .leading)
-                            .padding(.horizontal, 3)
-                            .background(Color.primary.opacity(r == 0 ? 0.05 : 0.02))
+                            .frame(width: 74, height: 21, alignment: .leading)
+                            .padding(.horizontal, 4)
+                            .background(r == 0 ? AppTheme.cardSubtleBackground : AppTheme.cardBackground)
                     }
                 }
-                .overlay(Rectangle().stroke(Color.primary.opacity(0.06), lineWidth: 0.5))
+                .overlay(Rectangle().stroke(AppTheme.hairlineBorder, lineWidth: 0.5))
             }
             if displayCols > 6 || rowCount > 2 {
                 Text(displayCols > 6 ? "… 共 \(displayCols) 列" : "… 共 \(rowCount) 行")
@@ -135,14 +145,20 @@ struct TableCardView: View {
                     Task { try? await Task.sleep(nanoseconds: 500_000_000); if flash == "region" { flash = nil } }
                 }
                 .font(.caption2)
-                .buttonStyle(.plain)
-                .foregroundStyle(.blue)
+                .foregroundStyle(AppTheme.accent)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .contentShape(Rectangle())
+                .buttonStyle(.tactile(cornerRadius: 4, hoverFill: AppTheme.accentSoft))
                 Button("清除选择") {
                     selRows = nil; selCols = nil; selAnchor = nil
                 }
                 .font(.caption2)
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppTheme.textSecondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .contentShape(Rectangle())
+                .buttonStyle(.tactile(cornerRadius: 4))
             } else {
                 Text("双击单元格复制 · 单击选中 · Shift+点击选区域 · 点行号/列标复制整行/列")
                     .font(.caption2)
@@ -196,8 +212,9 @@ struct TableCardView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 26, height: headerH)
                 .background(Color.primary.opacity(0.06))
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile(cornerRadius: 3, hoverFill: AppTheme.accentSoft, pressedScale: 0.92))
     }
 
     private func cellView(_ r: Int, _ c: Int) -> some View {

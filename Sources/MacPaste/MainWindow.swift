@@ -1,18 +1,29 @@
 import AppKit
 import SwiftUI
 
-/// 支持首次点击直接响应（无需先激活窗口再点第二次），且仅顶部头部区域允许拖拽移动窗口
+/// 支持首次点击直接响应（无需先激活窗口再点第二次）；拖窗交给显式的 WindowDragArea 处理，避免误拦截顶部按钮点击
 final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
     }
 
     override var mouseDownCanMoveWindow: Bool {
-        guard let window, let event = NSApp.currentEvent else { return false }
-        let loc = event.locationInWindow
-        // 仅顶部 42pt 头部栏区域可拖拽窗口，避免列表卡片点击时轻微手抖被系统判定为拖窗而吞掉点击
-        return loc.y >= window.frame.height - 42
+        false
     }
+}
+
+/// 标题栏空隙专用原生拖拽区
+struct WindowDragArea: NSViewRepresentable {
+    final class DragNSView: NSView {
+        override var mouseDownCanMoveWindow: Bool { true }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    }
+
+    func makeNSView(context: Context) -> DragNSView {
+        DragNSView()
+    }
+
+    func updateNSView(_ nsView: DragNSView, context: Context) {}
 }
 
 /// 非激活式主面板：保留标准窗口红绿灯与缩放体验，但点击列表条目时不抢夺外部目标应用的输入焦点

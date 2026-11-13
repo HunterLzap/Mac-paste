@@ -1,41 +1,46 @@
 import AppKit
 import SwiftUI
 
-/// 活贴图内容视图：支持置顶、调整大小、调整透明度、双击折叠，且贴出的文字/图片/表格均可继续交互操作
+/// 活贴图内容视图：Snipaste 级无顶栏纯享画布（常态与悬停 100% 不遮挡内容，支持任意位置拖拽移动，外置工具栏自动在上方或下方展开）
+/// 支持置顶、调整大小、滚轮/⌥+滚轮缩放文字与图片、⌘+滚轮调透明度、选项键(⌥)+拖拽划词
 struct PinContentView: View {
     @ObservedObject var state: PinItemState
     var onToggleCollapse: () -> Void
-    var onOpacityChange: (Double) -> Void
-    var onTriggerOCR: () -> Void
+    var onScaleAdjust: (CGFloat) -> Void = { _ in }
     var onTriggerTranslate: () -> Void = {}
     var onChangeTargetLanguage: (TranslationService.TargetLanguage) -> Void = { _ in }
     var onResizeStart: () -> CGSize
     var onResize: (CGSize, CGSize) -> Void
     var onClose: () -> Void
 
-    @State private var copiedAll = false
     @State private var copiedLineIdx: Int?
     @State private var pastedLineIdx: Int?
     @State private var copiedTranslation = false
     @State private var copiedSource = false
-    @State private var showOpacityPopover = false
+
+    private var cornerRadius: CGFloat {
+        (state.kind == .image && !state.showOCRList && !state.showTranslation && !state.isCollapsed) ? 8 : AppTheme.panelCornerRadius
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            headerBar
-            if !state.isCollapsed {
-                Divider()
+        Group {
+            if state.isCollapsed {
+                collapsedBar
+            } else {
                 contentBody
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .windowBackgroundColor))
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(AppTheme.cardBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.accentColor.opacity(0.38), lineWidth: 1.2)
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .strokeBorder(
+                    state.isHovered ? AppTheme.accent.opacity(0.45) : AppTheme.strongBorder,
+                    lineWidth: 1.0
+                )
         )
         .overlay(alignment: .bottom) {
             if !state.isCollapsed {
@@ -52,263 +57,74 @@ struct PinContentView: View {
                 ResizeHandleView(edge: .corner, onResizeStart: onResizeStart, onResize: onResize)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .contextMenu {
+            Button("复制全部内容") { state.copyAllToPasteboard() }
+            Divider()
+            Button("放大 (⌥+滚轮上 / ⌘+)") { onScaleAdjust(0.12) }
+            Button("缩小 (⌥+滚轮下 / ⌘-)") { onScaleAdjust(-0.12) }
+            if abs(state.contentScale - 1.0) > 0.02 {
+                Button("重置缩放 (⌘0)") { onScaleAdjust(0) }
+            }
+            Divider()
+            Button(state.isCollapsed ? "展开贴图" : "折叠为胶囊") { onToggleCollapse() }
+            Button("关闭贴图 (Esc)") { onClose() }
+        }
+        .environment(\.colorScheme, .light)
     }
 
-    // MARK: - 顶部控制栏
+    // MARK: - 折叠态极简胶囊
 
-    private var headerBar: some View {
+    private var collapsedBar: some View {
         HStack(spacing: 6) {
             Image(systemName: "pin.fill")
                 .font(.system(size: 10))
-                .foregroundStyle(.orange)
+                .foregroundStyle(AppTheme.pinOrange)
 
-            Text(headerTitle)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+            Text(collapsedTitle)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
 
             Spacer(minLength: 4)
 
-            if !state.isCollapsed {
-                modeButtons
-            }
-
-            // 透明度按钮 + 弹出滑块
-            Button {
-                showOpacityPopover.toggle()
-            } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: "circle.lefthalf.filled")
-                        .font(.system(size: 10))
-                    Text("\(Int(round(state.opacity * 100)))%")
-                        .font(.system(size: 9, design: .monospaced))
-                }
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(Color.primary.opacity(0.07)))
-                .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("调整贴图透明度（也可直接在贴图上按 ⌘+滚轮 调节）")
-            .popover(isPresented: $showOpacityPopover, arrowEdge: .bottom) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("透明度")
-                            .font(.caption.weight(.medium))
-                        Spacer()
-                        Text("\(Int(round(state.opacity * 100)))%")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(value: Binding(
-                        get: { state.opacity },
-                        set: { onOpacityChange($0) }
-                    ), in: 0.15...1.0)
-                    HStack(spacing: 6) {
-                        ForEach([0.4, 0.7, 1.0], id: \.self) { preset in
-                            Button("\(Int(preset * 100))%") {
-                                onOpacityChange(preset)
-                            }
-                            .font(.caption2)
-                            .buttonStyle(.bordered)
-                            .controlSize(.mini)
-                        }
-                        Spacer()
-                    }
-                    Text("提示：⌘ + 滚轮 可快速调节透明度")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(10)
-                .frame(width: 200)
-            }
-
-            // 一键复制全部
-            Button {
-                copyAll()
-                copiedAll = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { copiedAll = false }
-            } label: {
-                Image(systemName: copiedAll ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 11))
-                    .foregroundStyle(copiedAll ? Color.green : Color.secondary)
-                    .frame(width: 20, height: 20)
-            }
-            .buttonStyle(.plain)
-            .help(copiedAll ? "已复制" : "复制全部内容")
-
-            // 折叠/展开
             Button {
                 onToggleCollapse()
             } label: {
-                Image(systemName: state.isCollapsed ? "chevron.down" : "chevron.up")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18, height: 20)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .help(state.isCollapsed ? "展开贴图（或双击顶部栏）" : "折叠贴图为小胶囊（或双击顶部栏）")
+            .buttonStyle(.tactile(cornerRadius: 5))
+            .help("展开贴图")
 
-            // 关闭贴图
             Button {
                 onClose()
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppTheme.textSecondary)
                     .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tactile(cornerRadius: 5))
             .help("关闭贴图 (Esc)")
         }
         .padding(.horizontal, 10)
         .frame(height: 34)
+        .background(AppTheme.panelBackground)
         .contentShape(Rectangle())
     }
 
-    @ViewBuilder
-    private var modeButtons: some View {
+    private var collapsedTitle: String {
         switch state.kind {
-        case .image:
-            Button {
-                onTriggerOCR()
-            } label: {
-                HStack(spacing: 3) {
-                    if state.isPerformingOCR {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .scaleEffect(0.6)
-                    } else {
-                        Image(systemName: state.showOCRList ? "photo" : "text.viewfinder")
-                            .font(.system(size: 10))
-                    }
-                    Text(state.showOCRList ? "看原图" : "提取文字")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(Color.accentColor.opacity(0.15)))
-                .foregroundStyle(Color.accentColor)
-            }
-            .buttonStyle(.plain)
-            .help(state.showOCRList ? "切换回原图视图（原图上可直接划词复制）" : "OCR 识别图片中的全部文字并拆分为可复制段落")
-
-            Button {
-                onTriggerTranslate()
-            } label: {
-                HStack(spacing: 3) {
-                    if state.isTranslating {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .scaleEffect(0.6)
-                    } else {
-                        Image(systemName: state.showTranslation ? "photo" : "character.bubble")
-                            .font(.system(size: 10))
-                    }
-                    Text(state.showTranslation ? "看原图" : "翻译")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(Color.teal.opacity(0.18)))
-                .foregroundStyle(Color.teal)
-            }
-            .buttonStyle(.plain)
-            .help(state.showTranslation ? "切换回原图视图" : "自动识别图片中文字并进行多国语言翻译")
-
-        case .shortText, .longText:
-            if state.paragraphs.count >= 2 && !state.isEditingText {
-                Button {
-                    state.showSegments.toggle()
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: state.showSegments ? "text.alignleft" : "list.number")
-                            .font(.system(size: 10))
-                        Text(state.showSegments ? "原文" : "分段")
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.primary.opacity(0.08)))
-                    .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help(state.showSegments ? "切换为原始完整格式视图（直接划词复制）" : "切换为分段列表视图（带序号与按序粘贴）")
-            }
-
-            Button {
-                onTriggerTranslate()
-            } label: {
-                HStack(spacing: 2) {
-                    if state.isTranslating {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .scaleEffect(0.6)
-                    } else {
-                        Image(systemName: state.showTranslation ? "text.alignleft" : "character.bubble")
-                            .font(.system(size: 10))
-                    }
-                    Text(state.showTranslation ? "原文" : "翻译")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(Color.teal.opacity(0.18)))
-                .foregroundStyle(Color.teal)
-            }
-            .buttonStyle(.plain)
-            .help(state.showTranslation ? "切换回原文" : "多国语言智能翻译")
-
-            Button {
-                state.isEditingText.toggle()
-            } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: state.isEditingText ? "checkmark.circle.fill" : "pencil")
-                        .font(.system(size: 10))
-                    Text(state.isEditingText ? "完成" : "编辑")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(state.isEditingText ? Color.green.opacity(0.18) : Color.primary.opacity(0.08)))
-                .foregroundStyle(state.isEditingText ? Color.green : Color.secondary)
-            }
-            .buttonStyle(.plain)
-            .help(state.isEditingText ? "完成编辑" : "直接编辑贴图中的文字（当便签使用）")
-
-        case .table:
-            EmptyView()
-        }
-    }
-
-    private var headerTitle: String {
-        if state.isCollapsed {
-            switch state.kind {
-            case .image: return "图片贴图 · \(state.imageSizeText)"
-            case .table: return "表格贴图 · \(state.tableRows.count)×\(state.tableRows.first?.count ?? 0)"
-            default:
-                let first = state.textContent.components(separatedBy: .newlines).first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? "文本贴图"
-                return displayTruncate(first, 24)
-            }
-        }
-        switch state.kind {
-        case .image:
-            if state.showTranslation {
-                return "截图翻译 · \(state.detectedSourceName) → \(state.selectedTargetLanguage.name)"
-            }
-            return state.showOCRList ? "图片文字 (\(state.ocrLines.count) 行)" : "图片贴图 · 可直接划词复制"
-        case .table:
-            return "表格贴图 · \(state.tableRows.count)×\(state.tableRows.first?.count ?? 0)（双击单元格复制）"
-        case .shortText, .longText:
-            if state.showTranslation {
-                return "文本翻译 · \(state.detectedSourceName) → \(state.selectedTargetLanguage.name)"
-            }
-            if state.showSegments && state.paragraphs.count >= 2 {
-                return "分段清单 · 共 \(state.paragraphs.count) 段"
-            }
+        case .image: return "图片贴图 · \(state.imageSizeText)"
+        case .table: return "表格贴图 · \(state.tableRows.count)×\(state.tableRows.first?.count ?? 0)"
+        default:
             let first = state.textContent.components(separatedBy: .newlines).first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? "文本贴图"
-            return displayTruncate(first, 22)
+            return displayTruncate(first, 24)
         }
     }
 
@@ -322,13 +138,14 @@ struct PinContentView: View {
                 translationBilingualView
             } else if state.isEditingText {
                 TextEditor(text: $state.textContent)
-                    .font(.system(size: 12.5))
-                    .padding(6)
+                    .font(.system(size: 12.5 * state.contentScale))
+                    .padding(8)
             } else if state.showSegments && state.paragraphs.count >= 2 {
                 segmentsListView(lines: state.paragraphs)
             } else {
-                SelectableTextView(text: state.textContent)
-                    .padding(4)
+                SelectableTextView(text: state.textContent, fontScale: state.contentScale)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 6)
             }
 
         case .image:
@@ -339,7 +156,6 @@ struct PinContentView: View {
             } else if let img = state.image {
                 LiveTextImageView(image: img)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(4)
             }
 
         case .table:
@@ -384,9 +200,9 @@ struct PinContentView: View {
                         .padding(.top, 1)
 
                         Text(line)
-                            .font(.system(size: 12))
+                            .font(.system(size: 12 * state.contentScale))
                             .strikethrough(isChecked, color: .secondary)
-                            .foregroundStyle(isChecked ? .secondary : .primary)
+                            .foregroundStyle(isChecked ? AppTheme.textTertiary : AppTheme.textPrimary)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -412,7 +228,7 @@ struct PinContentView: View {
                                 )
                                 .foregroundStyle(isCopied ? Color.green : Color.primary)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.tactile(cornerRadius: 5, hoverFill: Color.black.opacity(0.06), pressedScale: 0.93))
 
                             Button {
                                 PinWindowManager.shared.onPasteText?(line)
@@ -436,20 +252,20 @@ struct PinContentView: View {
                                 )
                                 .foregroundStyle(isPasted ? Color.green : Color.accentColor)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.tactile(cornerRadius: 5, hoverFill: AppTheme.accentSoft, pressedScale: 0.93))
                         }
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
                     .background(
-                        RoundedRectangle(cornerRadius: 7)
+                        RoundedRectangle(cornerRadius: 8)
                             .fill(isCopied || isPasted
-                                  ? Color.green.opacity(0.08)
-                                  : Color.primary.opacity(0.04))
+                                  ? AppTheme.successGreen.opacity(0.08)
+                                  : AppTheme.cardSubtleBackground)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 7)
-                            .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(AppTheme.hairlineBorder, lineWidth: 0.8)
                     )
                 }
             }
@@ -460,18 +276,20 @@ struct PinContentView: View {
     /// 贴图内可交互表格网格（双击任意单元格复制）
     private var pinTableGrid: some View {
         let rows = state.tableRows
+        let s = state.contentScale
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(0..<min(rows.count, TableParser.maxRenderRows), id: \.self) { r in
                 HStack(spacing: 0) {
                     ForEach(0..<min(rows[r].count, TableParser.maxRenderCols), id: \.self) { c in
                         let val = rows[r][c]
                         Text(val.isEmpty ? " " : val)
-                            .font(.system(size: 11))
+                            .font(.system(size: 11 * s))
+                            .foregroundStyle(AppTheme.textPrimary)
                             .lineLimit(1)
                             .padding(.horizontal, 4)
-                            .frame(width: 84, height: 22, alignment: .leading)
-                            .background(Color.primary.opacity(r % 2 == 0 ? 0.04 : 0.015))
-                            .overlay(Rectangle().stroke(Color.primary.opacity(0.07), lineWidth: 0.5))
+                            .frame(width: 84 * s, height: 22 * s, alignment: .leading)
+                            .background(r % 2 == 0 ? AppTheme.cardSubtleBackground : AppTheme.cardBackground)
+                            .overlay(Rectangle().stroke(AppTheme.hairlineBorder, lineWidth: 0.5))
                             .contentShape(Rectangle())
                             .onTapGesture(count: 2) {
                                 copySegment(val)
@@ -569,10 +387,10 @@ struct PinContentView: View {
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.primary.opacity(0.03))
+            .padding(.vertical, 7)
+            .background(AppTheme.panelBackground)
 
-            Divider()
+            Divider().overlay(AppTheme.hairlineBorder)
 
             // 2. 双语对照主体内容
             ScrollView(.vertical, showsIndicators: true) {
@@ -605,14 +423,19 @@ struct PinContentView: View {
                             .help("复制原文")
                         }
                         Text(state.sourceTextForTranslation.isEmpty ? "（等待识别...）" : state.sourceTextForTranslation)
-                            .font(.system(size: 12))
+                            .font(.system(size: 12 * state.contentScale))
+                            .foregroundStyle(AppTheme.textPrimary)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(8)
+                    .padding(10)
                     .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.primary.opacity(0.04))
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(AppTheme.cardSubtleBackground)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(AppTheme.hairlineBorder, lineWidth: 0.8)
                     )
 
                     // 译文卡片
@@ -653,15 +476,20 @@ struct PinContentView: View {
                             .padding(.vertical, 6)
                         } else {
                             Text(state.translatedText.isEmpty ? "（无翻译内容）" : state.translatedText)
-                                .font(.system(size: 13, weight: .regular))
+                                .font(.system(size: 13 * state.contentScale, weight: .regular))
+                                .foregroundStyle(AppTheme.textPrimary)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    .padding(8)
+                    .padding(10)
                     .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.accentColor.opacity(0.08))
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(AppTheme.selectedCardBackground)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(AppTheme.accent.opacity(0.24), lineWidth: 0.9)
                     )
                 }
                 .padding(8)
@@ -716,44 +544,199 @@ struct PinContentView: View {
             ClipboardMonitor.markInternalWrite(text)
         }
     }
+}
 
-    private func copyAll() {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        if state.showTranslation && !state.translatedText.isEmpty {
-            if pb.setString(state.translatedText, forType: .string) {
-                ClipboardMonitor.markInternalWrite(state.translatedText)
+// MARK: - 外置悬停浮动工具栏视图（自动展开于贴图之外上方或下方）
+
+struct PinToolbarView: View {
+    @ObservedObject var state: PinItemState
+    var onToggleCollapse: () -> Void
+    var onTriggerOCR: () -> Void
+    var onTriggerTranslate: () -> Void
+    var onClose: () -> Void
+
+    @State private var copiedAll = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            modeSegmentedGroup
+
+            if state.kind != .table {
+                Rectangle()
+                    .fill(AppTheme.hairlineBorder)
+                    .frame(width: 1, height: 14)
+                    .padding(.horizontal, 2)
             }
-            return
+
+            // 复制全部
+            toolbarActionButton(
+                symbol: copiedAll ? "checkmark" : "doc.on.doc",
+                title: copiedAll ? "已复制" : "复制",
+                tint: copiedAll ? AppTheme.successGreen : AppTheme.textSecondary,
+                help: copiedAll ? "已复制" : "复制全部内容"
+            ) {
+                state.copyAllToPasteboard()
+                copiedAll = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { copiedAll = false }
+            }
+
+            // 收起折叠
+            toolbarActionButton(
+                symbol: "chevron.up",
+                title: "收起",
+                tint: AppTheme.textSecondary,
+                help: "收起为小胶囊"
+            ) {
+                onToggleCollapse()
+            }
+
+            // 关闭贴图
+            toolbarActionButton(
+                symbol: "xmark",
+                title: "关闭",
+                tint: AppTheme.textSecondary,
+                help: "关闭贴图 (Esc)"
+            ) {
+                onClose()
+            }
         }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3.5)
+        .background(
+            RoundedRectangle(cornerRadius: 9)
+                .fill(Color.white.opacity(0.96))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9)
+                .strokeBorder(AppTheme.hairlineBorder, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.14), radius: 5, y: 2)
+        // 周围透明留白既能完整呈现阴影，也与贴图窗口无缝相接避免鼠标跨越断层
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .fixedSize()
+        .environment(\.colorScheme, .light)
+    }
+
+    private func toolbarActionButton(
+        symbol: String,
+        title: String,
+        tint: Color,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                Image(systemName: symbol)
+                    .font(.system(size: 10, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 10.5, weight: .medium))
+            }
+            .foregroundStyle(tint)
+            .padding(.horizontal, 6)
+            .frame(height: 22)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.black.opacity(0.04))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.tactile(cornerRadius: 6, hoverFill: Color.black.opacity(0.065), pressedScale: 0.93))
+        .help(help)
+    }
+
+    @ViewBuilder
+    private var modeSegmentedGroup: some View {
         switch state.kind {
         case .image:
-            if state.showOCRList, !state.ocrLines.isEmpty {
-                let joined = state.ocrLines.joined(separator: "\n")
-                if pb.setString(joined, forType: .string) {
-                    ClipboardMonitor.markInternalWrite(joined)
+            let isRaw = !state.showOCRList && !state.showTranslation
+            HStack(spacing: 2) {
+                segIconButton(symbol: "photo", title: "原图", active: isRaw, loading: false, help: "原图视图（任意位置拖拽移动，⌥+拖拽划词）") {
+                    state.showOCRList = false
+                    state.showTranslation = false
                 }
-            } else if let img = state.image,
-                      let tiff = img.tiffRepresentation,
-                      let rep = NSBitmapImageRep(data: tiff),
-                      let png = rep.representation(using: .png, properties: [:]) {
-                if pb.setData(png, forType: .png) {
-                    ClipboardMonitor.markInternalWrite()
+                segIconButton(symbol: "text.viewfinder", title: "识字", active: state.showOCRList, loading: state.isPerformingOCR, help: "OCR 识别并提取图片中的文字") {
+                    if state.showOCRList {
+                        state.showOCRList = false
+                    } else {
+                        state.showTranslation = false
+                        onTriggerOCR()
+                    }
+                }
+                segIconButton(symbol: "translate", title: "翻译", active: state.showTranslation, loading: state.isTranslating, help: "双语对照翻译") {
+                    if state.showTranslation {
+                        state.showTranslation = false
+                    } else {
+                        onTriggerTranslate()
+                    }
                 }
             }
+            .padding(2)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Color.black.opacity(0.06)))
+
+        case .shortText, .longText:
+            let isRaw = !state.showSegments && !state.showTranslation && !state.isEditingText
+            HStack(spacing: 2) {
+                segIconButton(symbol: "text.alignleft", title: "原文", active: isRaw, loading: false, help: "原文视图（任意位置拖拽移动，⌥+拖拽划词）") {
+                    state.showSegments = false
+                    state.showTranslation = false
+                    state.isEditingText = false
+                }
+                if state.paragraphs.count >= 2 {
+                    segIconButton(symbol: "list.number", title: "分段", active: state.showSegments && !state.showTranslation && !state.isEditingText, loading: false, help: "按段落拆分并逐条复制或粘贴") {
+                        state.showTranslation = false
+                        state.isEditingText = false
+                        state.showSegments = true
+                    }
+                }
+                segIconButton(symbol: "translate", title: "翻译", active: state.showTranslation, loading: state.isTranslating, help: "多语言智能翻译") {
+                    if state.showTranslation {
+                        state.showTranslation = false
+                    } else {
+                        state.isEditingText = false
+                        onTriggerTranslate()
+                    }
+                }
+                segIconButton(symbol: state.isEditingText ? "checkmark" : "pencil", title: state.isEditingText ? "完成" : "编辑", active: state.isEditingText, loading: false, help: state.isEditingText ? "完成编辑" : "直接编辑文本（便签模式）") {
+                    state.showTranslation = false
+                    state.isEditingText.toggle()
+                }
+            }
+            .padding(2)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Color.black.opacity(0.06)))
+
         case .table:
-            let tsv = TableParser.canonicalTSV(state.tableRows)
-            if pb.setString(tsv, forType: .string) {
-                if let html = TableParser.htmlTable(state.tableRows).data(using: .utf8) {
-                    pb.setData(html, forType: .html)
-                }
-                ClipboardMonitor.markInternalWrite(tsv)
-            }
-        default:
-            if pb.setString(state.textContent, forType: .string) {
-                ClipboardMonitor.markInternalWrite(state.textContent)
-            }
+            EmptyView()
         }
+    }
+
+    private func segIconButton(symbol: String, title: String, active: Bool, loading: Bool, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                if loading {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .scaleEffect(0.55)
+                        .frame(width: 11, height: 11)
+                } else {
+                    Image(systemName: symbol)
+                        .font(.system(size: 10, weight: active ? .semibold : .medium))
+                }
+                Text(title)
+                    .font(.system(size: 10.5, weight: active ? .semibold : .medium))
+            }
+            .foregroundStyle(active ? AppTheme.accent : AppTheme.textSecondary)
+            .padding(.horizontal, 6)
+            .frame(height: 20)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(active ? Color.white : Color.clear)
+                    .shadow(color: active ? Color.black.opacity(0.08) : .clear, radius: 1, y: 0.5)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.tactile(cornerRadius: 6, hoverFill: Color.black.opacity(0.065), pressedScale: 0.93))
+        .help(help)
     }
 }
 
@@ -781,7 +764,7 @@ final class NativeSelectableTextView: NSView {
         textView.isRichText = false
         textView.importsGraphics = false
         textView.font = NSFont.systemFont(ofSize: 13.0, weight: .regular)
-        textView.textColor = NSColor.labelColor
+        textView.textColor = AppTheme.nsTextPrimary
         textView.textContainer?.lineFragmentPadding = 6
         textView.textContainer?.widthTracksTextView = true
         textView.autoresizingMask = [.width]
@@ -796,23 +779,28 @@ final class NativeSelectableTextView: NSView {
         true
     }
 
-    func setContent(_ text: String) {
+    func setContent(_ text: String, fontScale: CGFloat) {
         if textView.string != text {
             textView.string = text
+        }
+        let targetFontSize = max(8.5, min(32.5, 13.0 * fontScale))
+        if abs((textView.font?.pointSize ?? 13.0) - targetFontSize) > 0.2 {
+            textView.font = NSFont.systemFont(ofSize: targetFontSize, weight: .regular)
         }
     }
 }
 
 struct SelectableTextView: NSViewRepresentable {
     let text: String
+    var fontScale: CGFloat = 1.0
 
     func makeNSView(context: Context) -> NativeSelectableTextView {
         let v = NativeSelectableTextView(frame: .zero)
-        v.setContent(text)
+        v.setContent(text, fontScale: fontScale)
         return v
     }
 
     func updateNSView(_ nsView: NativeSelectableTextView, context: Context) {
-        nsView.setContent(text)
+        nsView.setContent(text, fontScale: fontScale)
     }
 }
