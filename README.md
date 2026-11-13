@@ -19,7 +19,7 @@
 
 <br />
 
-<img src="docs/assets/macpaste-hero.svg" alt="MacPaste v1.1 全新浅色界面与核心功能总览" width="1180" />
+<img src="docs/assets/macpaste-hero-light.svg" alt="MacPaste v1.1 全新浅色界面与核心功能总览" width="1180" />
 
 </div>
 
