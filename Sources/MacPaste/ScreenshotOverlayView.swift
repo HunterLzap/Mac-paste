@@ -75,11 +75,16 @@ final class ScreenshotCanvasView: NSView, NSTextFieldDelegate {
 
     // MARK: - 原地截图翻译状态
     struct InPlaceTranslationData {
-        let sourceText: String
-        let translatedText: String
+        var blocks: [ScreenshotRenderer.InPlaceTranslatedBlock]
         let targetLanguage: TranslationService.TargetLanguage
-        let dominantBgColor: NSColor
-        let textColor: NSColor
+
+        var combinedSourceText: String {
+            blocks.map(\.sourceText).joined(separator: "\n")
+        }
+
+        var combinedTranslatedText: String {
+            blocks.map(\.translatedText).joined(separator: "\n")
+        }
     }
 
     var showTranslationInPlace: Bool = false
@@ -1480,6 +1485,12 @@ extension ScreenshotCanvasView {
 
         case .resizingSelection(let handle, let initial):
             selectionRect = resizedRect(initial: initial, handle: handle, to: pt)
+            if showTranslationInPlace || inPlaceTranslationData != nil {
+                showTranslationInPlace = false
+                inPlaceTranslationData = nil
+                inPlaceTranslationError = nil
+                isTranslatingInPlace = false
+            }
             needsDisplay = true
 
         case .movingSelection(let startMouse, let initialRect):
@@ -1493,6 +1504,12 @@ extension ScreenshotCanvasView {
                 selectionRect = initialRect.offsetBy(dx: dx, dy: dy)
                 for i in annotations.indices {
                     annotations[i].translate(dx: stepDx, dy: stepDy)
+                }
+                if var transData = inPlaceTranslationData {
+                    for i in transData.blocks.indices {
+                        transData.blocks[i].rect = transData.blocks[i].rect.offsetBy(dx: stepDx, dy: stepDy)
+                    }
+                    inPlaceTranslationData = transData
                 }
             }
             needsDisplay = true
@@ -1809,14 +1826,29 @@ extension ScreenshotCanvasView {
 
     private func nudgeSelection(keyCode: UInt16, resize: Bool) {
         guard var sel = selectionRect else { return }
+        let oldSel = sel
         let dx: CGFloat = (keyCode == 123) ? -1 : (keyCode == 124 ? 1 : 0)
         let dy: CGFloat = (keyCode == 126) ? -1 : (keyCode == 125 ? 1 : 0)
         if resize {
             sel.size.width = max(8, min(sel.width + dx, bounds.width - sel.minX))
             sel.size.height = max(8, min(sel.height + dy, bounds.height - sel.minY))
+            if showTranslationInPlace || inPlaceTranslationData != nil {
+                showTranslationInPlace = false
+                inPlaceTranslationData = nil
+                inPlaceTranslationError = nil
+                isTranslatingInPlace = false
+            }
         } else {
             sel.origin.x = min(max(sel.origin.x + dx, 0), bounds.width - sel.width)
             sel.origin.y = min(max(sel.origin.y + dy, 0), bounds.height - sel.height)
+            let stepDx = sel.minX - oldSel.minX
+            let stepDy = sel.minY - oldSel.minY
+            if var transData = inPlaceTranslationData {
+                for i in transData.blocks.indices {
+                    transData.blocks[i].rect = transData.blocks[i].rect.offsetBy(dx: stepDx, dy: stepDy)
+                }
+                inPlaceTranslationData = transData
+            }
         }
         selectionRect = sel
         needsDisplay = true
@@ -1976,11 +2008,7 @@ extension ScreenshotCanvasView {
 
         let inPlaceInfo: ScreenshotRenderer.InPlaceTranslationInfo? = {
             if showTranslationInPlace, let d = inPlaceTranslationData {
-                return ScreenshotRenderer.InPlaceTranslationInfo(
-                    text: d.translatedText,
-                    dominantBgColor: d.dominantBgColor,
-                    textColor: d.textColor
-                )
+                return ScreenshotRenderer.InPlaceTranslationInfo(blocks: d.blocks)
             }
             return nil
         }()
@@ -1997,7 +2025,9 @@ extension ScreenshotCanvasView {
         }
 
         // 如果处于原地翻译状态，将翻译后的文本字符串也存入剪贴板文本
-        if showTranslationInPlace, let transText = inPlaceTranslationData?.translatedText, !transText.isEmpty {
+        if showTranslationInPlace,
+           let transText = inPlaceTranslationData?.combinedTranslatedText,
+           !transText.isEmpty {
             let pb = NSPasteboard.general
             pb.setString(transText, forType: .string)
             ClipboardMonitor.markInternalWrite(transText)
@@ -2188,14 +2218,11 @@ extension ScreenshotCanvasView {
             return
         }
 
-        // 2. 检测背景色与文字色
-        let (bgColor, textColor) = detectDominantColors(for: sel)
-
-        // 3. 执行 OCR 识别文本
-        ScreenshotManager.recognizeLines(from: cropImage) { [weak self] lines in
+        // 2. 执行分块 OCR 识别文本与对应位置
+        ScreenshotManager.recognizeTextBlocks(from: cropImage) { [weak self] ocrBlocks in
             guard let self, self.activeTranslationRequestId == reqId else { return }
-            let joinedText = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !joinedText.isEmpty else {
+            let joinedText = ocrBlocks.map(\.text).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !ocrBlocks.isEmpty, !joinedText.isEmpty else {
                 self.isTranslatingInPlace = false
                 self.inPlaceTranslationError = "未检测到可翻译文本"
                 self.needsDisplay = true
@@ -2203,7 +2230,7 @@ extension ScreenshotCanvasView {
                 return
             }
 
-            // 4. 自动检测源语言
+            // 3. 自动检测源语言并确认目标语言
             let (sourceCode, _) = TranslationService.shared.detectLanguage(for: joinedText)
 
             let resolvedTarget: TranslationService.TargetLanguage
@@ -2216,24 +2243,49 @@ extension ScreenshotCanvasView {
                 resolvedTarget = targetLang
             }
 
-            // 5. 异步调用轻量级 Google/Native 翻译
+            // 4. 异步批量保序翻译所有文本块
             Task {
                 do {
-                    let translated = try await TranslationService.shared.translate(
-                        text: joinedText,
-                        sourceLang: sourceCode,
+                    let translatedTexts = try await TranslationService.shared.translateBatch(
+                        texts: ocrBlocks.map(\.text),
+                        sourceLang: ocrBlocks.count > 1 ? "auto" : sourceCode,
                         targetCode: resolvedTarget.code
                     )
 
                     await MainActor.run {
                         guard self.activeTranslationRequestId == reqId else { return }
+                        var translatedBlocks: [ScreenshotRenderer.InPlaceTranslatedBlock] = []
+                        translatedBlocks.reserveCapacity(ocrBlocks.count)
+
+                        for (idx, ocrBlock) in ocrBlocks.enumerated() {
+                            let nr = ocrBlock.normalizedRect
+                            let blockRect = CGRect(
+                                x: sel.minX + nr.minX * sel.width,
+                                y: sel.minY + nr.minY * sel.height,
+                                width: nr.width * sel.width,
+                                height: nr.height * sel.height
+                            )
+                            let style = self.detectBlockStyle(for: blockRect, ocrBlock: ocrBlock, in: sel)
+                            let transText = idx < translatedTexts.count ? translatedTexts[idx] : ocrBlock.text
+                            translatedBlocks.append(ScreenshotRenderer.InPlaceTranslatedBlock(
+                                rect: blockRect,
+                                sourceText: ocrBlock.text,
+                                translatedText: transText,
+                                bgColor: style.bgColor,
+                                stripColors: style.stripColors,
+                                textColor: style.textColor,
+                                lineCount: ocrBlock.lineCount,
+                                trueLineHeight: style.trueLineHeight,
+                                isBold: style.isBold,
+                                isCentered: style.isCentered,
+                                fontWeight: style.fontWeight
+                            ))
+                        }
+
                         self.isTranslatingInPlace = false
                         self.inPlaceTranslationData = InPlaceTranslationData(
-                            sourceText: joinedText,
-                            translatedText: translated,
-                            targetLanguage: resolvedTarget,
-                            dominantBgColor: bgColor,
-                            textColor: textColor
+                            blocks: translatedBlocks,
+                            targetLanguage: resolvedTarget
                         )
                         self.showTranslationInPlace = true
                         self.needsDisplay = true
@@ -2251,58 +2303,178 @@ extension ScreenshotCanvasView {
         }
     }
 
-    private func detectDominantColors(for sel: CGRect) -> (bgColor: NSColor, textColor: NSColor) {
-        let samplePoints: [CGPoint] = [
-            CGPoint(x: sel.minX + 4, y: sel.minY + 4),
-            CGPoint(x: sel.maxX - 4, y: sel.minY + 4),
-            CGPoint(x: sel.minX + 4, y: sel.maxY - 4),
-            CGPoint(x: sel.maxX - 4, y: sel.maxY - 4),
-            CGPoint(x: sel.midX, y: sel.minY + 4),
-            CGPoint(x: sel.midX, y: sel.maxY - 4),
+    private func detectBlockStyle(
+        for blockRect: CGRect,
+        ocrBlock: OCRTextBlock,
+        in sel: CGRect
+    ) -> (bgColor: NSColor, stripColors: [(top: NSColor, bottom: NSColor)], textColor: NSColor, trueLineHeight: CGFloat, isBold: Bool, isCentered: Bool, fontWeight: NSFont.Weight) {
+        let clampBounds = (sel.width > 4 && sel.height > 4) ? sel.insetBy(dx: 1, dy: 1) : sel
+        let margin: CGFloat = 3.0
+        let rawPoints: [CGPoint] = [
+            // 上边缘外侧
+            CGPoint(x: blockRect.minX, y: blockRect.minY - margin),
+            CGPoint(x: blockRect.minX + blockRect.width * 0.33, y: blockRect.minY - margin),
+            CGPoint(x: blockRect.minX + blockRect.width * 0.67, y: blockRect.minY - margin),
+            CGPoint(x: blockRect.maxX, y: blockRect.minY - margin),
+            // 下边缘外侧
+            CGPoint(x: blockRect.minX, y: blockRect.maxY + margin),
+            CGPoint(x: blockRect.minX + blockRect.width * 0.33, y: blockRect.maxY + margin),
+            CGPoint(x: blockRect.minX + blockRect.width * 0.67, y: blockRect.maxY + margin),
+            CGPoint(x: blockRect.maxX, y: blockRect.maxY + margin),
+            // 左边缘外侧
+            CGPoint(x: blockRect.minX - margin, y: blockRect.minY),
+            CGPoint(x: blockRect.minX - margin, y: blockRect.midY),
+            CGPoint(x: blockRect.minX - margin, y: blockRect.maxY),
+            // 右边缘外侧
+            CGPoint(x: blockRect.maxX + margin, y: blockRect.minY),
+            CGPoint(x: blockRect.maxX + margin, y: blockRect.midY),
+            CGPoint(x: blockRect.maxX + margin, y: blockRect.maxY),
         ]
 
-        var totalLum: CGFloat = 0
-        var totalR: CGFloat = 0, totalG: CGFloat = 0, totalB: CGFloat = 0
-        var validCount: CGFloat = 0
+        let clampedPoints = rawPoints.map { pt in
+            CGPoint(
+                x: min(max(pt.x, clampBounds.minX), clampBounds.maxX),
+                y: min(max(pt.y, clampBounds.minY), clampBounds.maxY)
+            )
+        }
+        let outsidePoints = clampedPoints.filter { !blockRect.contains($0) }
+        let samplePoints = outsidePoints.isEmpty ? clampedPoints : outsidePoints
+
+        var rValues: [CGFloat] = []
+        var gValues: [CGFloat] = []
+        var bValues: [CGFloat] = []
+        rValues.reserveCapacity(samplePoints.count)
+        gValues.reserveCapacity(samplePoints.count)
+        bValues.reserveCapacity(samplePoints.count)
 
         for pt in samplePoints {
-            let color = sampler.colorAt(viewPoint: pt).nsColor
-            if let rgb = color.usingColorSpace(.deviceRGB) {
-                let lum = 0.299 * rgb.redComponent + 0.587 * rgb.greenComponent + 0.114 * rgb.blueComponent
-                totalLum += lum
-                totalR += rgb.redComponent
-                totalG += rgb.greenComponent
-                totalB += rgb.blueComponent
-                validCount += 1
+            let sample = sampler.colorAt(viewPoint: pt)
+            rValues.append(CGFloat(sample.r) / 255.0)
+            gValues.append(CGFloat(sample.g) / 255.0)
+            bValues.append(CGFloat(sample.b) / 255.0)
+        }
+
+        let medR: CGFloat
+        let medG: CGFloat
+        let medB: CGFloat
+        if !rValues.isEmpty {
+            rValues.sort()
+            gValues.sort()
+            bValues.sort()
+            let mid = rValues.count / 2
+            medR = rValues[mid]
+            medG = gValues[mid]
+            medB = bValues[mid]
+        } else {
+            medR = 1.0
+            medG = 1.0
+            medB = 1.0
+        }
+
+        let bgColor = sampler.makeColor(r: medR, g: medG, b: medB)
+        let bgLum = 0.299 * medR + 0.587 * medG + 0.114 * medB
+
+        func rgbDistance(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> CGFloat {
+            let dr = r - medR
+            let dg = g - medG
+            let db = b - medB
+            return sqrt(dr * dr + dg * dg + db * db)
+        }
+
+        // 1. 水平分片采样上下边缘外侧 3 点局部中值，完整保留广域渐变而不被全局色截断（范围对齐 coverRect 左右外扩）
+        let sampleMinX = max(blockRect.minX - 4.0, sel.minX)
+        let sampleMaxX = min(blockRect.maxX + 4.0, sel.maxX)
+        let sampleW = max(sampleMaxX - sampleMinX, blockRect.width)
+        let stripCount = max(1, min(Int(ceil(sampleW / 10.0)), 48))
+        var stripColors: [(top: NSColor, bottom: NSColor)] = []
+        stripColors.reserveCapacity(stripCount)
+
+        func edgeSampleMedian(x: CGFloat, y: CGFloat) -> NSColor {
+            var rs: [CGFloat] = []
+            var gs: [CGFloat] = []
+            var bs: [CGFloat] = []
+            rs.reserveCapacity(3)
+            gs.reserveCapacity(3)
+            bs.reserveCapacity(3)
+
+            for dx: CGFloat in [-3.0, 0.0, 3.0] {
+                let clamped = CGPoint(
+                    x: min(max(x + dx, clampBounds.minX), clampBounds.maxX),
+                    y: min(max(y, clampBounds.minY), clampBounds.maxY)
+                )
+                guard !blockRect.contains(clamped) else { continue }
+                let sample = sampler.colorAt(viewPoint: clamped)
+                rs.append(CGFloat(sample.r) / 255.0)
+                gs.append(CGFloat(sample.g) / 255.0)
+                bs.append(CGFloat(sample.b) / 255.0)
+            }
+            guard !rs.isEmpty else { return bgColor }
+            rs.sort()
+            gs.sort()
+            bs.sort()
+            let mid = rs.count / 2
+            return sampler.makeColor(r: rs[mid], g: gs[mid], b: bs[mid])
+        }
+
+        for i in 0..<stripCount {
+            let x = sampleMinX + (CGFloat(i) + 0.5) * (sampleW / CGFloat(stripCount))
+            let topC = edgeSampleMedian(x: x, y: blockRect.minY - 5.0)
+            let botC = edgeSampleMedian(x: x, y: blockRect.maxY + 5.0)
+            stripColors.append((top: topC, bottom: botC))
+        }
+
+        // 2. 在块内部采样提取原文字真实前景色（过滤抗锯齿边缘像素）
+        let cols = 20
+        let rows = ocrBlock.lineCount >= 2 ? 12 : 6
+        var fgSamples: [(dist: CGFloat, r: CGFloat, g: CGFloat, b: CGFloat)] = []
+        fgSamples.reserveCapacity(cols * rows / 2)
+
+        for rIdx in 0..<rows {
+            for cIdx in 0..<cols {
+                let sx = blockRect.minX + (CGFloat(cIdx) + 0.5) * (blockRect.width / CGFloat(cols))
+                let sy = blockRect.minY + (CGFloat(rIdx) + 0.5) * (blockRect.height / CGFloat(rows))
+                let sample = sampler.colorAt(viewPoint: CGPoint(x: sx, y: sy))
+                let sr = CGFloat(sample.r) / 255.0
+                let sg = CGFloat(sample.g) / 255.0
+                let sb = CGFloat(sample.b) / 255.0
+                let dist = rgbDistance(sr, sg, sb)
+                if dist > 0.22 {
+                    fgSamples.append((dist, sr, sg, sb))
+                }
             }
         }
 
-        let avgLum = validCount > 0 ? totalLum / validCount : 1.0
-        let isLight = avgLum > 0.55
-
-        if isLight {
-            let avgR = validCount > 0 ? totalR / validCount : 1.0
-            let avgG = validCount > 0 ? totalG / validCount : 1.0
-            let avgB = validCount > 0 ? totalB / validCount : 1.0
-            let bg = NSColor(calibratedRed: avgR, green: avgG, blue: avgB, alpha: 1.0)
-            let text = NSColor(calibratedRed: 0.11, green: 0.13, blue: 0.16, alpha: 1.0)
-            return (bg, text)
+        let textColor: NSColor
+        if fgSamples.count >= 4 {
+            fgSamples.sort { $0.dist > $1.dist }
+            let keepCount = max(4, Int(ceil(Double(fgSamples.count) * 0.60)))
+            let topPixels = fgSamples.prefix(keepCount)
+            let fgRs = topPixels.map(\.r).sorted()
+            let fgGs = topPixels.map(\.g).sorted()
+            let fgBs = topPixels.map(\.b).sorted()
+            let fMid = fgRs.count / 2
+            textColor = sampler.makeColor(r: fgRs[fMid], g: fgGs[fMid], b: fgBs[fMid])
+        } else if bgLum > 0.55 {
+            textColor = sampler.makeColor(r: 0.11, g: 0.13, b: 0.16)
         } else {
-            let avgR = validCount > 0 ? totalR / validCount : 0.12
-            let avgG = validCount > 0 ? totalG / validCount : 0.12
-            let avgB = validCount > 0 ? totalB / validCount : 0.12
-            let bg = NSColor(calibratedRed: avgR, green: avgG, blue: avgB, alpha: 1.0)
-            let text = NSColor(calibratedRed: 0.94, green: 0.95, blue: 0.97, alpha: 1.0)
-            return (bg, text)
+            textColor = sampler.makeColor(r: 0.94, g: 0.95, b: 0.97)
         }
+
+        // 3. 字重、真实单行高度与居中特征
+        let fallbackLineH = blockRect.height / CGFloat(max(ocrBlock.lineCount, 1))
+        let trueLineH = ocrBlock.normalizedLineHeight > 0
+            ? max(ocrBlock.normalizedLineHeight * sel.height, 8.0)
+            : fallbackLineH
+        let isBold = (trueLineH >= 24.0)
+        let isDarkButton = (ocrBlock.lineCount == 1 && blockRect.width < sel.width * 0.42 && bgLum < 0.35)
+        let isCentered = ocrBlock.isCentered || isDarkButton
+        let fontWeight: NSFont.Weight = isBold ? .bold : (isDarkButton ? .medium : .regular)
+
+        return (bgColor, stripColors, textColor, trueLineH, isBold, isCentered, fontWeight)
     }
 
     func drawInPlaceTranslation(_ data: InPlaceTranslationData, in sel: CGRect) {
-        data.dominantBgColor.setFill()
-        let bgPath = NSBezierPath(rect: sel)
-        bgPath.fill()
-
-        ScreenshotRenderer.drawInPlaceTranslationText(data.translatedText, textColor: data.textColor, in: sel)
+        ScreenshotRenderer.drawInPlaceTranslationBlocks(data.blocks, in: sel)
     }
 
     func drawTranslatingOverlay(in sel: CGRect) {

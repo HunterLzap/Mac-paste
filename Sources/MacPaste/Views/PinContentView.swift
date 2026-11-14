@@ -17,6 +17,7 @@ struct PinContentView: View {
     @State private var pastedLineIdx: Int?
     @State private var copiedTranslation = false
     @State private var copiedSource = false
+    @State private var copiedPairIdx: Int?
 
     private var cornerRadius: CGFloat {
         (state.kind == .image && !state.showOCRList && !state.showTranslation && !state.isCollapsed) ? 8 : AppTheme.panelCornerRadius
@@ -395,102 +396,173 @@ struct PinContentView: View {
             // 2. 双语对照主体内容
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 10) {
-                    // 原文卡片
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("原文")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Button {
-                                speak(text: state.sourceTextForTranslation)
-                            } label: {
-                                Image(systemName: "speaker.wave.1")
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .help("朗读原文")
-
-                            Button {
-                                copySource()
-                            } label: {
-                                Image(systemName: copiedSource ? "checkmark" : "doc.on.doc")
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(copiedSource ? Color.green : Color.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .help("复制原文")
-                        }
-                        Text(state.sourceTextForTranslation.isEmpty ? "（等待识别...）" : state.sourceTextForTranslation)
-                            .font(.system(size: 12 * state.contentScale))
-                            .foregroundStyle(AppTheme.textPrimary)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(AppTheme.cardSubtleBackground)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(AppTheme.hairlineBorder, lineWidth: 0.8)
-                    )
-
-                    // 译文卡片
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("译文 (\(state.selectedTargetLanguage.name))")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(Color.accentColor)
-                            Spacer()
-                        }
-
-                        if state.isTranslating {
-                            HStack(spacing: 8) {
-                                ProgressView()
-                                    .controlSize(.small)
-                                Text("正在翻译中...")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, 14)
-                        } else if let errorMsg = state.translationErrorMessage {
+                    if state.translationPairs.count >= 2 && !state.isTranslating && state.translationErrorMessage == nil {
+                        ForEach(Array(state.translationPairs.enumerated()), id: \.offset) { idx, pair in
+                            let isPairCopied = (copiedPairIdx == idx)
                             VStack(alignment: .leading, spacing: 6) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundStyle(Color.orange)
-                                    Text("翻译失败: \(errorMsg)")
-                                        .font(.system(size: 11))
+                                HStack(alignment: .top, spacing: 6) {
+                                    Text("\(idx + 1)")
+                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(AppTheme.accent)
+                                        .frame(width: 18, height: 18)
+                                        .background(Circle().fill(AppTheme.accentSoft))
+                                        .padding(.top, 1)
+
+                                    Text(pair.source)
+                                        .font(.system(size: 11.5 * state.contentScale))
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                                    Button {
+                                        copySegment(pair.target)
+                                        copiedPairIdx = idx
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+                                            if copiedPairIdx == idx { copiedPairIdx = nil }
+                                        }
+                                    } label: {
+                                        HStack(spacing: 2) {
+                                            Image(systemName: isPairCopied ? "checkmark" : "doc.on.doc")
+                                                .font(.system(size: 9))
+                                            Text(isPairCopied ? "已复制" : "复制")
+                                                .font(.system(size: 10, weight: .medium))
+                                        }
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2.5)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 5)
+                                                .fill(isPairCopied ? Color.green.opacity(0.18) : Color.primary.opacity(0.08))
+                                        )
+                                        .foregroundStyle(isPairCopied ? Color.green : Color.primary)
+                                    }
+                                    .buttonStyle(.tactile(cornerRadius: 5, hoverFill: Color.black.opacity(0.06), pressedScale: 0.93))
+                                    .help("复制此段译文")
+                                }
+
+                                Text(pair.target.isEmpty ? "（无翻译内容）" : pair.target)
+                                    .font(.system(size: 12.5 * state.contentScale, weight: .medium))
+                                    .foregroundStyle(AppTheme.textPrimary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(AppTheme.selectedCardBackground)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .strokeBorder(AppTheme.accent.opacity(0.22), lineWidth: 0.8)
+                                    )
+                            }
+                            .padding(9)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(isPairCopied ? AppTheme.successGreen.opacity(0.06) : AppTheme.cardSubtleBackground)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(AppTheme.hairlineBorder, lineWidth: 0.8)
+                            )
+                        }
+                    } else {
+                        // 原文卡片
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("原文")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button {
+                                    speak(text: state.sourceTextForTranslation)
+                                } label: {
+                                    Image(systemName: "speaker.wave.1")
+                                        .font(.system(size: 9))
                                         .foregroundStyle(.secondary)
                                 }
-                                Button("重试") {
-                                    onTriggerTranslate()
+                                .buttonStyle(.plain)
+                                .help("朗读原文")
+
+                                Button {
+                                    copySource()
+                                } label: {
+                                    Image(systemName: copiedSource ? "checkmark" : "doc.on.doc")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(copiedSource ? Color.green : Color.secondary)
                                 }
-                                .font(.system(size: 11, weight: .medium))
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.mini)
+                                .buttonStyle(.plain)
+                                .help("复制原文")
                             }
-                            .padding(.vertical, 6)
-                        } else {
-                            Text(state.translatedText.isEmpty ? "（无翻译内容）" : state.translatedText)
-                                .font(.system(size: 13 * state.contentScale, weight: .regular))
+                            Text(state.sourceTextForTranslation.isEmpty ? "（等待识别...）" : state.sourceTextForTranslation)
+                                .font(.system(size: 12 * state.contentScale))
                                 .foregroundStyle(AppTheme.textPrimary)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(AppTheme.cardSubtleBackground)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(AppTheme.hairlineBorder, lineWidth: 0.8)
+                        )
+
+                        // 译文卡片
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("译文 (\(state.selectedTargetLanguage.name))")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Color.accentColor)
+                                Spacer()
+                            }
+
+                            if state.isTranslating {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text("正在翻译中...")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 14)
+                            } else if let errorMsg = state.translationErrorMessage {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundStyle(Color.orange)
+                                        Text("翻译失败: \(errorMsg)")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Button("重试") {
+                                        onTriggerTranslate()
+                                    }
+                                    .font(.system(size: 11, weight: .medium))
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.mini)
+                                }
+                                .padding(.vertical, 6)
+                            } else {
+                                Text(state.translatedText.isEmpty ? "（无翻译内容）" : state.translatedText)
+                                    .font(.system(size: 13 * state.contentScale, weight: .regular))
+                                    .foregroundStyle(AppTheme.textPrimary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(AppTheme.selectedCardBackground)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(AppTheme.accent.opacity(0.24), lineWidth: 0.9)
+                        )
                     }
-                    .padding(10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(AppTheme.selectedCardBackground)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(AppTheme.accent.opacity(0.24), lineWidth: 0.9)
-                    )
                 }
                 .padding(8)
             }

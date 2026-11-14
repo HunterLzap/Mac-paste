@@ -88,6 +88,7 @@ final class PinItemState: ObservableObject {
     /// 翻译状态与结果
     @Published var sourceTextForTranslation: String = ""
     @Published var translatedText: String = ""
+    @Published var translationPairs: [(source: String, target: String)] = []
     @Published var detectedSourceName: String = "自动检测"
     @Published var selectedTargetLanguage: TranslationService.TargetLanguage = TranslationService.commonTargetLanguages[0]
     @Published var isTranslating: Bool = false
@@ -863,25 +864,28 @@ final class PinWindowController: NSObject {
             }
         }
 
-        let executeWithText: (String) -> Void = { [weak self] rawText in
+        let executeWithLines: ([String]) -> Void = { [weak self] rawLines in
             guard let self else { return }
-            let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else {
+            let lines = rawLines
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            guard !lines.isEmpty else {
                 self.state.translationErrorMessage = "未识别到可翻译文本"
                 self.state.isTranslating = false
                 return
             }
 
-            self.state.sourceTextForTranslation = text
-            let (code, name) = TranslationService.shared.detectLanguage(for: text)
+            let joinedText = lines.joined(separator: "\n")
+            self.state.sourceTextForTranslation = joinedText
+            let (code, name) = TranslationService.shared.detectLanguage(for: joinedText)
             self.state.detectedSourceName = name
 
             let target: TranslationService.TargetLanguage
             if let targetCode {
                 target = TranslationService.commonTargetLanguages.first(where: { $0.code == targetCode })
-                    ?? TranslationService.shared.suggestedTargetLanguage(for: text)
+                    ?? TranslationService.shared.suggestedTargetLanguage(for: joinedText)
             } else {
-                target = TranslationService.shared.suggestedTargetLanguage(for: text)
+                target = TranslationService.shared.suggestedTargetLanguage(for: joinedText)
             }
             self.state.selectedTargetLanguage = target
 
@@ -890,14 +894,30 @@ final class PinWindowController: NSObject {
 
             Task {
                 do {
-                    let result = try await TranslationService.shared.translate(
-                        text: text,
-                        sourceLang: code,
-                        targetCode: target.code
-                    )
-                    await MainActor.run {
-                        self.state.translatedText = result
-                        self.state.isTranslating = false
+                    if lines.count >= 2 {
+                        let results = try await TranslationService.shared.translateBatch(
+                            texts: lines,
+                            sourceLang: "auto",
+                            targetCode: target.code
+                        )
+                        let pairs = Array(zip(lines, results)).map { (source: $0.0, target: $0.1) }
+                        let joinedResult = results.joined(separator: "\n")
+                        await MainActor.run {
+                            self.state.translationPairs = pairs
+                            self.state.translatedText = joinedResult
+                            self.state.isTranslating = false
+                        }
+                    } else {
+                        let result = try await TranslationService.shared.translate(
+                            text: lines[0],
+                            sourceLang: code,
+                            targetCode: target.code
+                        )
+                        await MainActor.run {
+                            self.state.translationPairs = [(source: lines[0], target: result)]
+                            self.state.translatedText = result
+                            self.state.isTranslating = false
+                        }
                     }
                 } catch {
                     await MainActor.run {
@@ -909,20 +929,31 @@ final class PinWindowController: NSObject {
         }
 
         if state.kind == .image, let img = state.image {
-            if !state.sourceTextForTranslation.isEmpty {
-                executeWithText(state.sourceTextForTranslation)
-            } else if !state.ocrLines.isEmpty {
-                executeWithText(state.ocrLines.joined(separator: "\n"))
+            if state.translationPairs.count >= 2 {
+                executeWithLines(state.translationPairs.map(\.source))
+            } else if !state.ocrLines.isEmpty && state.ocrLines != ["（未识别到文本）"] {
+                executeWithLines(state.ocrLines)
+            } else if !state.sourceTextForTranslation.isEmpty {
+                executeWithLines([state.sourceTextForTranslation])
             } else {
                 state.isTranslating = true
-                ScreenshotManager.recognizeLines(from: img) { [weak self] lines in
-                    let joined = lines.joined(separator: "\n")
-                    self?.state.ocrLines = lines
-                    executeWithText(joined)
+                ScreenshotManager.recognizeTextBlocks(from: img) { [weak self] blocks in
+                    let blockTexts = blocks.map(\.text)
+                    if !blockTexts.isEmpty {
+                        self?.state.ocrLines = blockTexts
+                    }
+                    executeWithLines(blockTexts)
                 }
             }
         } else {
-            executeWithText(state.textContent)
+            let lines: [String]
+            if state.paragraphs.count >= 2 {
+                lines = state.paragraphs
+            } else {
+                let single = state.textContent.trimmingCharacters(in: .whitespacesAndNewlines)
+                lines = single.isEmpty ? [] : [single]
+            }
+            executeWithLines(lines)
         }
     }
 

@@ -1,6 +1,18 @@
 import AppKit
 import CoreGraphics
 
+// MARK: - OCR 分块结果模型
+
+struct OCRTextBlock {
+    let text: String
+    /// 归一化坐标（左上角为原点，x/y/width/height 均在 0...1 之间）
+    let normalizedRect: CGRect
+    /// 归一化单行文字平均高度（不含行间距），用于准确推断字号与字重
+    let normalizedLineHeight: CGFloat
+    let lineCount: Int
+    let isCentered: Bool
+}
+
 // MARK: - 截图工具枚举
 
 enum ScreenshotTool: String, CaseIterable {
@@ -333,6 +345,8 @@ final class ScreenBitmapSampler {
     let width: Int
     let height: Int
     let scaleFactor: CGFloat
+    let cgColorSpace: CGColorSpace
+    let nsColorSpace: NSColorSpace
     private let pixelData: [UInt8]
 
     init(cgImage: CGImage, scaleFactor: CGFloat) {
@@ -341,8 +355,16 @@ final class ScreenBitmapSampler {
         self.height = cgImage.height
         self.scaleFactor = max(scaleFactor, 1.0)
 
+        let resolvedCGColorSpace: CGColorSpace = {
+            if let cs = cgImage.colorSpace, cs.model == .rgb {
+                return cs
+            }
+            return CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        }()
+        self.cgColorSpace = resolvedCGColorSpace
+        self.nsColorSpace = NSColorSpace(cgColorSpace: resolvedCGColorSpace) ?? .sRGB
+
         var buffer = [UInt8](repeating: 0, count: width * height * 4)
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
         if let ctx = CGContext(
             data: &buffer,
@@ -350,12 +372,18 @@ final class ScreenBitmapSampler {
             height: height,
             bitsPerComponent: 8,
             bytesPerRow: width * 4,
-            space: colorSpace,
+            space: resolvedCGColorSpace,
             bitmapInfo: bitmapInfo
         ) {
             ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
         }
         self.pixelData = buffer
+    }
+
+    /// 使用采样器原始色彩空间构造 NSColor，避免 calibrated/deviceRGB 转换导致渐变色差
+    func makeColor(r: CGFloat, g: CGFloat, b: CGFloat, alpha: CGFloat = 1.0) -> NSColor {
+        let components: [CGFloat] = [r, g, b, alpha]
+        return NSColor(colorSpace: nsColorSpace, components: components, count: 4)
     }
 
     /// 根据翻转视图坐标 (左上角为原点) 获取像素 RGB (0...255) 与 HEX
@@ -370,11 +398,10 @@ final class ScreenBitmapSampler {
         let g = Int(pixelData[idx + 1])
         let b = Int(pixelData[idx + 2])
         let hex = String(format: "#%02X%02X%02X", r, g, b)
-        let color = NSColor(
-            calibratedRed: CGFloat(r) / 255.0,
-            green: CGFloat(g) / 255.0,
-            blue: CGFloat(b) / 255.0,
-            alpha: 1.0
+        let color = makeColor(
+            r: CGFloat(r) / 255.0,
+            g: CGFloat(g) / 255.0,
+            b: CGFloat(b) / 255.0
         )
         return (r, g, b, hex, color)
     }
@@ -593,56 +620,233 @@ enum ScreenshotRenderer {
 
     // MARK: - 原地截图翻译数据与渲染
 
-    struct InPlaceTranslationInfo {
-        let text: String
-        let dominantBgColor: NSColor
+    struct InPlaceTranslatedBlock {
+        var rect: CGRect          // 在翻转视图坐标系 (selectionRect 所在坐标系) 下的文本块原位矩形
+        let sourceText: String
+        let translatedText: String
+        let bgColor: NSColor
+        let stripColors: [(top: NSColor, bottom: NSColor)]
         let textColor: NSColor
+        let lineCount: Int
+        let trueLineHeight: CGFloat
+        let isBold: Bool
+        let isCentered: Bool
+        let fontWeight: NSFont.Weight
     }
 
-    static func drawInPlaceTranslationText(_ text: String, textColor: NSColor, in sel: CGRect) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+    struct InPlaceTranslationInfo {
+        let blocks: [InPlaceTranslatedBlock]
+    }
 
-        let hPad: CGFloat = min(max(sel.width * 0.03, 10), 20)
-        let vPad: CGFloat = min(max(sel.height * 0.04, 8), 16)
-        let textRect = sel.insetBy(dx: hPad, dy: vPad)
-        guard textRect.width > 20, textRect.height > 10 else { return }
+    private struct PreparedInPlaceBlockDraw {
+        let coverRect: CGRect
+        let textDrawRect: CGRect
+        let bgColor: NSColor
+        let stripColors: [(top: NSColor, bottom: NSColor)]
+        let text: String
+        let attrs: [NSAttributedString.Key: Any]
+    }
 
-        let baseSize: CGFloat = min(max(sel.height * 0.42, 13), 22)
-        var fontSize = baseSize
-        var bestAttrs = makeInPlaceAttributes(fontSize: fontSize, textColor: textColor)
+    static func drawInPlaceTranslationBlocks(_ blocks: [InPlaceTranslatedBlock], in sel: CGRect) {
+        guard !blocks.isEmpty else { return }
 
-        var measured = (trimmed as NSString).boundingRect(
-            with: CGSize(width: textRect.width, height: CGFloat.greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: bestAttrs
-        )
-        while measured.height > textRect.height && fontSize > 11 {
-            fontSize -= 1.0
-            bestAttrs = makeInPlaceAttributes(fontSize: fontSize, textColor: textColor)
-            measured = (trimmed as NSString).boundingRect(
-                with: CGSize(width: textRect.width, height: CGFloat.greatestFiniteMagnitude),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: bestAttrs
-            )
+        var prepared: [PreparedInPlaceBlockDraw] = []
+        prepared.reserveCapacity(blocks.count)
+
+        for (idx, block) in blocks.enumerated() {
+            let trimmed = block.translatedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            let baseRect = block.rect.intersection(sel)
+            guard !baseRect.isNull, baseRect.width >= 2, baseRect.height >= 2 else { continue }
+
+            let fontWeight = block.fontWeight
+            let alignment: NSTextAlignment = block.isCentered ? .center : .left
+            let effectiveLineH = block.trueLineHeight > 0
+                ? block.trueLineHeight
+                : (baseRect.height / CGFloat(max(block.lineCount, 1)))
+            let attrs: [NSAttributedString.Key: Any]
+            let textDrawRect: CGRect
+
+            if block.lineCount <= 1 {
+                // 计算同行左右两侧无其他文本块遮挡的可扩展宽度上限
+                var leftLimit = sel.minX + 4.0
+                var rightLimit = sel.maxX - 4.0
+                for (otherIdx, other) in blocks.enumerated() where otherIdx != idx {
+                    let otherRect = other.rect.intersection(sel)
+                    guard !otherRect.isNull else { continue }
+                    let overlapY = min(otherRect.maxY, baseRect.maxY) - max(otherRect.minY, baseRect.minY)
+                    guard overlapY > 2.0 else { continue }
+                    if otherRect.minX >= baseRect.maxX - 2.0 {
+                        rightLimit = min(rightLimit, otherRect.minX - 6.0)
+                    } else if otherRect.maxX <= baseRect.minX + 2.0 {
+                        leftLimit = max(leftLimit, otherRect.maxX + 6.0)
+                    }
+                }
+                let maxSingleLineWidth: CGFloat
+                if block.isCentered {
+                    let halfAvail = min(baseRect.midX - leftLimit, rightLimit - baseRect.midX)
+                    maxSingleLineWidth = max(baseRect.width, halfAvail * 2.0)
+                } else {
+                    maxSingleLineWidth = max(baseRect.width, rightLimit - baseRect.minX)
+                }
+
+                let initialFontSize = min(max(effectiveLineH * 0.80, 11.0), 64.0)
+                let minFontSize = max(10.0, initialFontSize * 0.62)
+                var fontSize = initialFontSize
+                var currentAttrs = makeInPlaceAttributes(
+                    fontSize: fontSize,
+                    weight: fontWeight,
+                    textColor: block.textColor,
+                    alignment: alignment
+                )
+                var singleSize = (trimmed as NSString).size(withAttributes: currentAttrs)
+
+                while singleSize.width > baseRect.width + 2.0 && fontSize > minFontSize {
+                    fontSize = max(minFontSize, fontSize - 0.5)
+                    currentAttrs = makeInPlaceAttributes(
+                        fontSize: fontSize,
+                        weight: fontWeight,
+                        textColor: block.textColor,
+                        alignment: alignment
+                    )
+                    singleSize = (trimmed as NSString).size(withAttributes: currentAttrs)
+                }
+
+                attrs = currentAttrs
+                if singleSize.width + 2.0 <= maxSingleLineWidth {
+                    let drawW = max(baseRect.width, min(ceil(singleSize.width) + 2.0, maxSingleLineWidth))
+                    let drawH = ceil(singleSize.height)
+                    let rawDrawX = block.isCentered ? (baseRect.midX - drawW / 2.0) : baseRect.minX
+                    let drawX = min(max(rawDrawX, sel.minX + 2.0), max(sel.minX + 2.0, sel.maxX - drawW - 2.0))
+                    let drawY = min(
+                        max(baseRect.midY - drawH / 2.0, sel.minY + 1.0),
+                        max(sel.minY + 1.0, sel.maxY - drawH - 1.0)
+                    )
+                    textDrawRect = CGRect(x: drawX, y: drawY, width: drawW, height: drawH)
+                } else {
+                    let measured = (trimmed as NSString).boundingRect(
+                        with: CGSize(width: maxSingleLineWidth, height: .greatestFiniteMagnitude),
+                        options: [.usesLineFragmentOrigin, .usesFontLeading],
+                        attributes: currentAttrs
+                    )
+                    let wrappedH = min(ceil(measured.height), max(baseRect.height, sel.maxY - baseRect.minY - 2.0))
+                    let rawDrawX = block.isCentered ? (baseRect.midX - maxSingleLineWidth / 2.0) : baseRect.minX
+                    let drawX = min(max(rawDrawX, sel.minX + 2.0), max(sel.minX + 2.0, sel.maxX - maxSingleLineWidth - 2.0))
+                    let drawY = min(
+                        max(baseRect.minY, sel.minY + 1.0),
+                        max(sel.minY + 1.0, sel.maxY - wrappedH - 1.0)
+                    )
+                    textDrawRect = CGRect(x: drawX, y: drawY, width: maxSingleLineWidth, height: wrappedH)
+                }
+            } else {
+                let initialFontSize = min(max(effectiveLineH * 0.82, 11.0), 56.0)
+                var fontSize = initialFontSize
+                var currentAttrs = makeInPlaceAttributes(
+                    fontSize: fontSize,
+                    weight: fontWeight,
+                    textColor: block.textColor,
+                    alignment: alignment
+                )
+                var measured = (trimmed as NSString).boundingRect(
+                    with: CGSize(width: baseRect.width, height: .greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    attributes: currentAttrs
+                )
+
+                while measured.height > baseRect.height && fontSize > 10.0 {
+                    fontSize = max(10.0, fontSize - 0.5)
+                    currentAttrs = makeInPlaceAttributes(
+                        fontSize: fontSize,
+                        weight: fontWeight,
+                        textColor: block.textColor,
+                        alignment: alignment
+                    )
+                    measured = (trimmed as NSString).boundingRect(
+                        with: CGSize(width: baseRect.width, height: .greatestFiniteMagnitude),
+                        options: [.usesLineFragmentOrigin, .usesFontLeading],
+                        attributes: currentAttrs
+                    )
+                }
+
+                attrs = currentAttrs
+                let drawH = min(ceil(measured.height), max(baseRect.height, sel.maxY - baseRect.minY - 2.0))
+                let rawY: CGFloat = (block.isBold && measured.height < baseRect.height * 0.75)
+                    ? (baseRect.midY - drawH / 2.0)
+                    : baseRect.minY
+                let drawY = min(
+                    max(rawY, sel.minY + 1.0),
+                    max(sel.minY + 1.0, sel.maxY - drawH - 1.0)
+                )
+                textDrawRect = CGRect(x: baseRect.minX, y: drawY, width: baseRect.width, height: drawH)
+            }
+
+            let coverRect = baseRect.union(textDrawRect).insetBy(dx: -4.0, dy: -2.0).intersection(sel)
+            prepared.append(PreparedInPlaceBlockDraw(
+                coverRect: coverRect,
+                textDrawRect: textDrawRect,
+                bgColor: block.bgColor,
+                stripColors: block.stripColors,
+                text: trimmed,
+                attrs: attrs
+            ))
         }
 
-        let drawY = max(textRect.minY + (textRect.height - measured.height) / 2, textRect.minY)
-        let drawRect = CGRect(x: textRect.minX, y: drawY, width: textRect.width, height: measured.height)
-
-        (trimmed as NSString).draw(
-            with: drawRect,
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: bestAttrs
-        )
+        // 先统一填充所有块背景底色（按分片裁剪绘制渐变擦除），再绘制译文，避免相邻块互相擦除
+        for item in prepared {
+            let radius = min(item.coverRect.height * 0.18, 4.0)
+            let clipPath = NSBezierPath(roundedRect: item.coverRect, xRadius: radius, yRadius: radius)
+            if item.stripColors.count >= 2 {
+                NSGraphicsContext.saveGraphicsState()
+                clipPath.addClip()
+                let stripW = item.coverRect.width / CGFloat(item.stripColors.count)
+                for (sIdx, pair) in item.stripColors.enumerated() {
+                    let x0 = item.coverRect.minX + CGFloat(sIdx) * stripW
+                    let stripRect = CGRect(x: x0 - 0.5, y: item.coverRect.minY, width: stripW + 1.0, height: item.coverRect.height)
+                    if let grad = NSGradient(
+                        colors: [pair.top, pair.bottom],
+                        atLocations: [0.0, 1.0],
+                        colorSpace: pair.top.colorSpace
+                    ) ?? NSGradient(starting: pair.top, ending: pair.bottom) {
+                        NSGraphicsContext.saveGraphicsState()
+                        NSBezierPath.clip(stripRect)
+                        grad.draw(
+                            from: CGPoint(x: stripRect.midX, y: item.coverRect.minY),
+                            to: CGPoint(x: stripRect.midX, y: item.coverRect.maxY),
+                            options: [.drawsBeforeStartingLocation, .drawsAfterEndingLocation]
+                        )
+                        NSGraphicsContext.restoreGraphicsState()
+                    } else {
+                        pair.top.setFill()
+                        stripRect.fill()
+                    }
+                }
+                NSGraphicsContext.restoreGraphicsState()
+            } else {
+                item.bgColor.setFill()
+                clipPath.fill()
+            }
+        }
+        for item in prepared {
+            (item.text as NSString).draw(
+                with: item.textDrawRect,
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: item.attrs
+            )
+        }
     }
 
-    private static func makeInPlaceAttributes(fontSize: CGFloat, textColor: NSColor) -> [NSAttributedString.Key: Any] {
-        let font = NSFont.systemFont(ofSize: fontSize, weight: .regular)
+    private static func makeInPlaceAttributes(
+        fontSize: CGFloat,
+        weight: NSFont.Weight = .regular,
+        textColor: NSColor,
+        alignment: NSTextAlignment = .left
+    ) -> [NSAttributedString.Key: Any] {
+        let font = NSFont.systemFont(ofSize: fontSize, weight: weight)
         let style = NSMutableParagraphStyle()
         style.lineBreakMode = .byWordWrapping
-        style.lineSpacing = max(fontSize * 0.22, 3)
-        style.alignment = .left
+        style.lineSpacing = max(fontSize * 0.16, 2.0)
+        style.alignment = alignment
         return [
             .font: font,
             .foregroundColor: textColor,
@@ -671,7 +875,7 @@ enum ScreenshotRenderer {
         }
 
         let targetSize = NSSize(width: selectionRect.width, height: selectionRect.height)
-        guard let rep = NSBitmapImageRep(
+        guard let rawRep = NSBitmapImageRep(
             bitmapDataPlanes: nil,
             pixelsWide: Int(pixelRect.width),
             pixelsHigh: Int(pixelRect.height),
@@ -685,6 +889,7 @@ enum ScreenshotRenderer {
         ) else {
             return NSImage(cgImage: baseCG, size: targetSize)
         }
+        let rep = rawRep.retagging(with: sampler.nsColorSpace) ?? rawRep
         rep.size = targetSize
 
         NSGraphicsContext.saveGraphicsState()
@@ -701,11 +906,9 @@ enum ScreenshotRenderer {
 
             NSGraphicsContext.current = NSGraphicsContext(cgContext: cg, flipped: true)
 
-            // 如果处于原地翻译生效状态，先在底层画出翻译后的背景与文本，替换原屏幕像素！
+            // 如果处于原地翻译生效状态，仅在各文本块原位覆盖背景与译文，保留其余原图视觉
             if let trans = inPlaceTranslation {
-                trans.dominantBgColor.setFill()
-                NSBezierPath(rect: selectionRect).fill()
-                drawInPlaceTranslationText(trans.text, textColor: trans.textColor, in: selectionRect)
+                drawInPlaceTranslationBlocks(trans.blocks, in: selectionRect)
             }
 
             for item in annotations {

@@ -142,4 +142,60 @@ final class TranslationService {
         let translated = sentences.compactMap { $0.first as? String }.joined()
         return translated.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// 批量保序翻译多个文本块：优先单次换行合并请求以降低延迟，若行数被改写则自动并发逐条保序回退
+    func translateBatch(
+        texts: [String],
+        sourceLang: String = "auto",
+        targetCode: String = "zh-CN"
+    ) async throws -> [String] {
+        guard !texts.isEmpty else { return [] }
+        if texts.count == 1 {
+            let single = try await translate(text: texts[0], sourceLang: sourceLang, targetCode: targetCode)
+            return [single]
+        }
+
+        let sanitized = texts.map { item in
+            item
+                .replacingOccurrences(of: "\r\n", with: " ")
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "\r", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if sanitized.allSatisfy({ !$0.isEmpty }) {
+            let joined = sanitized.joined(separator: "\n")
+            if joined.count <= 1800 {
+                let batchResult = try await translate(text: joined, sourceLang: sourceLang, targetCode: targetCode)
+                let splitLines = batchResult
+                    .components(separatedBy: .newlines)
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                if splitLines.count == texts.count {
+                    return splitLines
+                }
+            }
+        }
+
+        return try await withThrowingTaskGroup(of: (Int, String).self) { group in
+            for (idx, text) in texts.enumerated() {
+                group.addTask {
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return (idx, "") }
+                    let translated = try await self.translate(
+                        text: trimmed,
+                        sourceLang: sourceLang,
+                        targetCode: targetCode
+                    )
+                    return (idx, translated)
+                }
+            }
+
+            var results = Array(repeating: "", count: texts.count)
+            for try await (idx, translated) in group {
+                results[idx] = translated
+            }
+            return results
+        }
+    }
 }
