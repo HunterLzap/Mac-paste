@@ -1,0 +1,78 @@
+name: Build and Package WinPaste (Windows)
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+    paths:
+      - 'windows/**'
+      - '.github/workflows/windows-build.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'windows/**'
+      - '.github/workflows/windows-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore windows/WinPaste.sln
+
+      - name: Build solution
+        run: dotnet build windows/WinPaste.sln --configuration Release --no-restore
+
+      - name: Run unit tests
+        run: dotnet test windows/WinPaste.Tests/WinPaste.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Publish single-file executable (win-x64)
+        run: >
+          dotnet publish windows/WinPaste.App/WinPaste.App.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o publish/win-x64
+
+      - name: Package portable WinPaste zip
+        shell: pwsh
+        run: |
+          Get-ChildItem publish/win-x64 -Include *.pdb,*.lib -Recurse | Remove-Item -Force
+          New-Item -ItemType Directory -Force -Path publish/dist | Out-Null
+          Compress-Archive -Path publish/win-x64/* -DestinationPath publish/dist/WinPaste.zip -Force
+          if ("${{ github.ref }}" -like "refs/tags/v*") {
+            $tag = "${{ github.ref_name }}"
+            Copy-Item publish/dist/WinPaste.zip "publish/dist/WinPaste-$tag-win-x64.zip" -Force
+          }
+
+      - name: Upload WinPaste Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinPaste-win-x64
+          path: publish/dist/
+          if-no-files-found: error
+
+      - name: Upload WinPaste release assets on tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release upload $tag "publish/dist/WinPaste-$tag-win-x64.zip" "publish/dist/WinPaste.zip" --clobber

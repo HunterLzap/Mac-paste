@@ -1,0 +1,165 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Frosted Paper & Crisp Ink 浅色现代卡片主题（1:1 对齐 Mac 版 AppTheme.swift） -->
+    <Color x:Key="PanelBackgroundColor">#F7F8FB</Color>
+    <Color x:Key="CardBackgroundColor">#FFFFFF</Color>
+    <Color x:Key="CardHoverColor">#FAFCFF</Color>
+    <Color x:Key="SubtleSurfaceColor">#F3F5F9</Color>
+    <Color x:Key="SelectedTintColor">#F5F9FF</Color>
+
+    <Color x:Key="BorderHairlineColor">#16000000</Color>
+    <Color x:Key="BorderStrongColor">#24000000</Color>
+
+    <Color x:Key="AccentColor">#007AFF</Color>
+    <Color x:Key="AccentSoftColor">#1F007AFF</Color>
+    <Color x:Key="PinOrangeColor">#FF9500</Color>
+    <Color x:Key="SuccessGreenColor">#28CD41</Color>
+    <Color x:Key="DangerRedColor">#FF3B30</Color>
+
+    <Color x:Key="TextPrimaryColor">#181C23</Color>
+    <Color x:Key="TextSecondaryColor">#5E6678</Color>
+    <Color x:Key="TextTertiaryColor">#8D95A5</Color>
+
+    <SolidColorBrush x:Key="PanelBackgroundBrush" Color="{StaticResource PanelBackgroundColor}" />
+    <SolidColorBrush x:Key="CardBackgroundBrush" Color="{StaticResource CardBackgroundColor}" />
+    <SolidColorBrush x:Key="CardHoverBrush" Color="{StaticResource CardHoverColor}" />
+    <SolidColorBrush x:Key="SubtleSurfaceBrush" Color="{StaticResource SubtleSurfaceColor}" />
+    <SolidColorBrush x:Key="SelectedTintBrush" Color="{StaticResource SelectedTintColor}" />
+
+    <SolidColorBrush x:Key="BorderHairlineBrush" Color="{StaticResource BorderHairlineColor}" />
+    <SolidColorBrush x:Key="BorderStrongBrush" Color="{StaticResource BorderStrongColor}" />
+
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="{StaticResource AccentSoftColor}" />
+    <SolidColorBrush x:Key="PinOrangeBrush" Color="{StaticResource PinOrangeColor}" />
+    <SolidColorBrush x:Key="SuccessGreenBrush" Color="{StaticResource SuccessGreenColor}" />
+    <SolidColorBrush x:Key="DangerRedBrush" Color="{StaticResource DangerRedColor}" />
+
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+    <SolidColorBrush x:Key="TextTertiaryBrush" Color="{StaticResource TextTertiaryColor}" />
+
+    <FontFamily x:Key="AppFontFamily">Segoe UI, Microsoft YaHei UI</FontFamily>
+    <FontFamily x:Key="MonoFontFamily">Cascadia Mono, Consolas, Microsoft YaHei UI</FontFamily>
+
+    <!-- 触感图标/胶囊按钮样式（hover 柔和底色 + 按压微缩 0.94） -->
+    <Style x:Key="TactileButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="6,4" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <ScaleTransform ScaleX="1" ScaleY="1" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#11000000" />
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Opacity" Value="0.84" />
+                            <Setter Property="RenderTransform">
+                                <Setter.Value>
+                                    <ScaleTransform ScaleX="0.94" ScaleY="0.94" />
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.38" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AccentPillButtonStyle" TargetType="Button" BasedOn="{StaticResource TactileButtonStyle}">
+        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#0066D6" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Opacity" Value="0.88" />
+                            <Setter Property="RenderTransform">
+                                <Setter.Value>
+                                    <ScaleTransform ScaleX="0.95" ScaleY="0.95" />
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 柔和卡片边框容器样式 -->
+    <Style x:Key="CardBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource CardBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderHairlineBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+
+    <!-- 紧凑滚动条 -->
+    <Style TargetType="ScrollBar">
+        <Setter Property="Width" Value="7" />
+        <Setter Property="MinWidth" Value="7" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Background="Transparent">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.Thumb>
+                                <Thumb>
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border Background="#2A000000" CornerRadius="3.5" Margin="1,2" />
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="Height" Value="7" />
+                <Setter Property="MinHeight" Value="7" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+</ResourceDictionary>

@@ -1,0 +1,147 @@
+<Window x:Class="WinPaste.App.Windows.PinWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WinPaste 贴图"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        FontFamily="{StaticResource AppFontFamily}"
+        MouseEnter="Window_MouseEnter"
+        MouseLeave="Window_MouseLeave"
+        PreviewMouseLeftButtonDown="Window_PreviewMouseLeftButtonDown"
+        PreviewMouseMove="Window_PreviewMouseMove"
+        PreviewMouseLeftButtonUp="Window_PreviewMouseLeftButtonUp"
+        PreviewMouseWheel="Window_PreviewMouseWheel"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        LocationChanged="Window_LocationChanged"
+        SizeChanged="Window_LocationChanged"
+        Closed="Window_Closed">
+    <Grid x:Name="ShadowRoot" Margin="6">
+        <Border x:Name="CardShell"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource BorderStrongBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                ClipToBounds="True">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="14" ShadowDepth="3" Color="#32000000" Opacity="0.25" />
+            </Border.Effect>
+            <Border.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="复制当前内容" Click="CtxCopy_Click" />
+                    <MenuItem x:Name="CtxSaveItem" Header="另存为 PNG..." Click="CtxSave_Click" />
+                    <Separator />
+                    <MenuItem x:Name="CtxOcrItem" Header="OCR 取字" Click="CtxOcr_Click" />
+                    <MenuItem x:Name="CtxBilingualItem" Header="1-to-1 双语对照卡片" Click="CtxBilingual_Click" />
+                    <MenuItem Header="收起 / 展开" Click="CtxCollapse_Click" />
+                    <Separator />
+                    <MenuItem Header="重置缩放 (100%)" Click="CtxResetZoom_Click" />
+                    <MenuItem Header="关闭此贴图 (Esc)" Click="CtxClose_Click" />
+                </ContextMenu>
+            </Border.ContextMenu>
+
+            <Grid>
+                <!-- 1. 收起态 34px 胶囊 bar（双击展开） -->
+                <Border x:Name="CollapsedCapsule"
+                        Height="34"
+                        Background="{StaticResource PanelBackgroundBrush}"
+                        Padding="12,0"
+                        Visibility="Collapsed"
+                        MouseLeftButtonDown="CollapsedCapsule_MouseLeftButtonDown">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right"
+                                Content="展开"
+                                Style="{StaticResource TactileButtonStyle}"
+                                FontSize="11"
+                                Foreground="{StaticResource AccentBrush}"
+                                Padding="6,2"
+                                Click="BtnExpand_Click" />
+                        <TextBlock x:Name="CollapsedSummaryText"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   Margin="0,0,8,0" />
+                    </DockPanel>
+                </Border>
+
+                <!-- 2. 图片原图视图 -->
+                <Image x:Name="PinnedImageView"
+                       Stretch="Fill"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       Visibility="Collapsed" />
+
+                <!-- 3. 文字视图（支持双击原位编辑，按 Alt 拖拽可选中文字） -->
+                <Grid x:Name="TextPinView" Visibility="Collapsed" Margin="12,10">
+                    <ScrollViewer x:Name="TextScrollViewer" VerticalScrollBarVisibility="Auto">
+                        <TextBox x:Name="PinnedTextReadonly"
+                                 IsReadOnly="True"
+                                 BorderThickness="0"
+                                 Background="Transparent"
+                                 FontSize="13"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Cursor="Hand" />
+                    </ScrollViewer>
+                    <StackPanel x:Name="TextEditPanel" Visibility="Collapsed">
+                        <TextBox x:Name="PinnedTextEditor"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 MinHeight="90"
+                                 MaxHeight="320"
+                                 FontSize="13"
+                                 Padding="6"
+                                 VerticalScrollBarVisibility="Auto" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                            <Button Content="取消" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Margin="0,0,4,0" Click="BtnCancelTextEdit_Click" />
+                            <Button Content="保存" Style="{StaticResource AccentPillButtonStyle}" FontSize="11.5" Click="BtnSaveTextEdit_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+
+                <!-- 4. 表格贴图交互矩阵 -->
+                <ScrollViewer x:Name="TablePinScroller"
+                              Visibility="Collapsed"
+                              Margin="8"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto">
+                    <Grid x:Name="PinnedTableGrid" />
+                </ScrollViewer>
+
+                <!-- 5. OCR 取字列表视图 -->
+                <DockPanel x:Name="OcrListView" Visibility="Collapsed" Margin="10">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Content="复制选中" Style="{StaticResource TactileButtonStyle}" FontSize="11" Margin="0,0,4,0" Click="BtnCopySelectedOcr_Click" />
+                            <Button Content="复制全部" Style="{StaticResource AccentPillButtonStyle}" FontSize="11" Margin="0,0,4,0" Click="BtnCopyAllOcr_Click" />
+                            <Button Content="原图" Style="{StaticResource TactileButtonStyle}" FontSize="11" Click="BtnBackToImage_Click" />
+                        </StackPanel>
+                        <TextBlock x:Name="OcrStatusText" Text="OCR 取字" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <ScrollViewer x:Name="OcrScroller" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="OcrLinesHost" />
+                    </ScrollViewer>
+                </DockPanel>
+
+                <!-- 6. 1-to-1 编号双语对照卡片视图 -->
+                <DockPanel x:Name="BilingualCardsView" Visibility="Collapsed" Margin="10">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <ComboBox x:Name="PinLangCombo" Width="96" Height="23" FontSize="11" DisplayMemberPath="Name" Margin="0,0,4,0" SelectionChanged="PinLangCombo_SelectionChanged" />
+                            <Button Content="复制译文" Style="{StaticResource AccentPillButtonStyle}" FontSize="11" Margin="0,0,4,0" Click="BtnCopyAllTranslations_Click" />
+                            <Button Content="原图" Style="{StaticResource TactileButtonStyle}" FontSize="11" Click="BtnBackToImage_Click" />
+                        </StackPanel>
+                        <TextBlock x:Name="BilingualStatusText" Text="1-to-1 双语对照" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <ScrollViewer x:Name="BilingualScroller" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="BilingualCardsHost" />
+                    </ScrollViewer>
+                </DockPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

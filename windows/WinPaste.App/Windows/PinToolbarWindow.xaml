@@ -1,0 +1,49 @@
+<Window x:Class="WinPaste.App.Windows.PinToolbarWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        FontFamily="{StaticResource AppFontFamily}"
+        MouseEnter="Window_MouseEnter"
+        MouseLeave="Window_MouseLeave">
+    <Border Margin="4"
+            Background="#F7F9FAFC"
+            BorderBrush="#24000000"
+            BorderThickness="1"
+            CornerRadius="9"
+            Padding="6,4">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="12" ShadowDepth="2" Color="#30000000" Opacity="0.22" />
+        </Border.Effect>
+
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <!-- 收起 / 展开胶囊 -->
+            <Button x:Name="BtnCollapse" Content="收起" ToolTip="收起为胶囊 bar / 展开" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,3" Click="BtnCollapse_Click" />
+
+            <!-- 图片专属功能：OCR 取字 + 双语 1-to-1 卡片 -->
+            <StackPanel x:Name="ImageOnlyButtons" Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Width="1" Height="15" Background="#1A000000" Margin="4,0" />
+                <Button x:Name="BtnOcr" Content="OCR取字" ToolTip="识别图片全部文字" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,3" Click="BtnOcr_Click" />
+                <Button x:Name="BtnBilingual" ToolTip="切换双语 1-to-1 编号对照卡片" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,3" Click="BtnBilingual_Click">
+                    <TextBlock x:Name="TxtBilingual" Text="双语对照" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
+                </Button>
+            </StackPanel>
+
+            <Border Width="1" Height="15" Background="#1A000000" Margin="4,0" />
+
+            <!-- 透明度显示与快捷循环 -->
+            <Button x:Name="BtnOpacity" ToolTip="Ctrl+滚轮细腻调透明度，点击快速切换" Style="{StaticResource TactileButtonStyle}" FontSize="11" Padding="5,3" Click="BtnOpacityCycle_Click" />
+
+            <Border Width="1" Height="15" Background="#1A000000" Margin="4,0" />
+
+            <Button Content="复制" ToolTip="复制当前内容" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,3" Click="BtnCopy_Click" />
+            <Button x:Name="BtnSave" Content="保存" ToolTip="保存为 PNG" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,3" Click="BtnSave_Click" />
+            <Button Content="✕" ToolTip="关闭贴图 (Esc)" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,3" Foreground="{StaticResource DangerRedBrush}" Click="BtnClose_Click" />
+        </StackPanel>
+    </Border>
+</Window>

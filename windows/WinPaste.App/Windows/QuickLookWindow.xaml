@@ -1,0 +1,47 @@
+<Window x:Class="WinPaste.App.Windows.QuickLookWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="图片快速预览"
+        Width="780"
+        Height="560"
+        WindowStartupLocation="CenterScreen"
+        Background="#F2F4F8"
+        FontFamily="{StaticResource AppFontFamily}"
+        KeyDown="Window_KeyDown">
+    <DockPanel>
+        <!-- 顶部轻工具栏 -->
+        <Border DockPanel.Dock="Top"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderHairlineBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="12,8">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <TextBlock x:Name="ZoomLabel" Text="100%" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Button Content="复制" Style="{StaticResource TactileButtonStyle}" FontSize="12" Margin="0,0,4,0" Click="BtnCopy_Click" />
+                    <Button Content="贴图 (F3)" Style="{StaticResource AccentPillButtonStyle}" FontSize="12" Margin="0,0,4,0" Click="BtnPin_Click" />
+                    <Button Content="另存为" Style="{StaticResource TactileButtonStyle}" FontSize="12" Click="BtnSave_Click" />
+                </StackPanel>
+                <TextBlock x:Name="InfoLabel"
+                           FontSize="12.5"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer x:Name="ImageScroller"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto"
+                      Background="#181C23"
+                      PreviewMouseWheel="ImageScroller_PreviewMouseWheel">
+            <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Image x:Name="PreviewImg" Stretch="Uniform" RenderTransformOrigin="0.5,0.5">
+                    <Image.LayoutTransform>
+                        <ScaleTransform x:Name="ImgScale" ScaleX="1" ScaleY="1" />
+                    </Image.LayoutTransform>
+                </Image>
+            </Grid>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

@@ -1,0 +1,70 @@
+<UserControl x:Class="WinPaste.App.Views.ImageCellView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent"
+             MouseEnter="Root_MouseEnter"
+             MouseLeave="Root_MouseLeave"
+             MouseLeftButtonUp="Root_MouseLeftButtonUp"
+             MouseRightButtonUp="Root_MouseRightButtonUp">
+    <Border x:Name="CardBorder"
+            Background="{StaticResource CardBackgroundBrush}"
+            BorderBrush="{StaticResource BorderHairlineBrush}"
+            BorderThickness="1"
+            CornerRadius="9"
+            Padding="5">
+        <Border.ContextMenu>
+            <ContextMenu>
+                <MenuItem Header="复制图片" Click="MenuCopy_Click" />
+                <MenuItem Header="贴到屏幕 (F3)" Click="MenuPinToScreen_Click" />
+                <MenuItem Header="快速预览" Click="MenuPreview_Click" />
+                <Separator />
+                <MenuItem x:Name="MenuPinItem" Header="置顶" Click="MenuTogglePin_Click" />
+                <MenuItem Header="删除" Click="MenuDelete_Click" />
+            </ContextMenu>
+        </Border.ContextMenu>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="92" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- 92px 缩略图区域 -->
+            <Border Grid.Row="0" Background="{StaticResource SubtleSurfaceBrush}" CornerRadius="6" ClipToBounds="True">
+                <Grid>
+                    <Image x:Name="ThumbImage" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                    <Button x:Name="BtnHoverPinToScreen"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="4"
+                            Padding="5,2"
+                            Background="#CCFFFFFF"
+                            BorderBrush="{StaticResource BorderHairlineBrush}"
+                            BorderThickness="1"
+                            Visibility="Collapsed"
+                            ToolTip="贴到屏幕 (F3)"
+                            Style="{StaticResource TactileButtonStyle}"
+                            Click="BtnPinToScreen_Click">
+                        <TextBlock Text="贴屏" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- 页脚尺寸/时间 + 置顶标 -->
+            <DockPanel Grid.Row="1" Margin="2,5,2,1">
+                <TextBlock x:Name="PinBadge"
+                           DockPanel.Dock="Right"
+                           Text="📌"
+                           FontSize="10.5"
+                           Foreground="{StaticResource PinOrangeBrush}"
+                           Visibility="Collapsed"
+                           VerticalAlignment="Center" />
+                <TextBlock x:Name="MetaText"
+                           FontSize="10.5"
+                           Foreground="{StaticResource TextTertiaryBrush}"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center" />
+            </DockPanel>
+        </Grid>
+    </Border>
+</UserControl>

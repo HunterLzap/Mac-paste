@@ -1,8 +1,15 @@
 .build/
 build/
+publish/
 .DS_Store
 *.o
 .workbuddy/
 .swiftpm/
 *.xcuserdata
+windows/**/bin/
+windows/**/obj/
+windows/.vs/
+*.user
+*.suo
+
 

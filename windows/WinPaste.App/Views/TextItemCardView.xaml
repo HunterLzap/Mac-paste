@@ -1,0 +1,145 @@
+<UserControl x:Class="WinPaste.App.Views.TextItemCardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent"
+             MouseEnter="Root_MouseEnter"
+             MouseLeave="Root_MouseLeave"
+             MouseLeftButtonUp="Root_MouseLeftButtonUp">
+    <Border x:Name="CardBorder"
+            Background="{StaticResource CardBackgroundBrush}"
+            BorderBrush="{StaticResource BorderHairlineBrush}"
+            BorderThickness="1"
+            CornerRadius="10"
+            Padding="11,9">
+        <Border.ContextMenu>
+            <ContextMenu>
+                <MenuItem Header="复制" Click="MenuCopy_Click" />
+                <MenuItem x:Name="MenuSeqItem" Header="按序粘贴" Click="MenuToggleSeq_Click" />
+                <MenuItem Header="贴到屏幕 (F3)" Click="MenuPinToScreen_Click" />
+                <Separator />
+                <MenuItem x:Name="MenuPinItem" Header="置顶" Click="MenuTogglePin_Click" />
+                <MenuItem Header="删除" Click="MenuDelete_Click" />
+            </ContextMenu>
+        </Border.ContextMenu>
+
+        <Grid>
+            <!-- 普通条目卡片 -->
+            <StackPanel x:Name="NormalPanel">
+                <DockPanel Margin="0,0,0,5">
+                    <TextBlock x:Name="PinBadge"
+                               DockPanel.Dock="Right"
+                               Text="📌"
+                               FontSize="11"
+                               Foreground="{StaticResource PinOrangeBrush}"
+                               Visibility="Collapsed"
+                               VerticalAlignment="Top"
+                               Margin="6,0,0,0" />
+                    <TextBlock x:Name="ContentPreviewText"
+                               FontSize="12.5"
+                               LineHeight="18"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+
+                <DockPanel LastChildFill="True" MinHeight="22">
+                    <StackPanel x:Name="HoverActions"
+                                DockPanel.Dock="Right"
+                                Orientation="Horizontal"
+                                Visibility="Collapsed"
+                                VerticalAlignment="Center">
+                        <Button x:Name="BtnSeqToggle"
+                                ToolTip="分段按序粘贴"
+                                Style="{StaticResource TactileButtonStyle}"
+                                Padding="5,2"
+                                Visibility="Collapsed"
+                                Click="BtnToggleSeq_Click">
+                            <TextBlock Text="按序" FontSize="11" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
+                        </Button>
+                        <Button ToolTip="贴到屏幕 (F3)" Style="{StaticResource TactileButtonStyle}" Padding="5,2" Click="BtnPinToScreen_Click">
+                            <TextBlock Text="贴图" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                        </Button>
+                        <Button ToolTip="置顶" Style="{StaticResource TactileButtonStyle}" Padding="5,2" Click="BtnTogglePin_Click">
+                            <TextBlock x:Name="BtnPinText" Text="置顶" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                        </Button>
+                        <Button ToolTip="删除" Style="{StaticResource TactileButtonStyle}" Padding="5,2" Click="BtnDelete_Click">
+                            <TextBlock Text="删除" FontSize="11" Foreground="{StaticResource DangerRedBrush}" />
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="MetaText"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextTertiaryBrush}"
+                                   VerticalAlignment="Center" />
+                        <Button x:Name="SegmentPillButton"
+                                Style="{StaticResource TactileButtonStyle}"
+                                Background="{StaticResource AccentSoftBrush}"
+                                Padding="6,2"
+                                Margin="8,0,0,0"
+                                Visibility="Collapsed"
+                                Click="BtnToggleSeq_Click">
+                            <TextBlock x:Name="SegmentPillText"
+                                       FontSize="10.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource AccentBrush}" />
+                        </Button>
+                    </StackPanel>
+                </DockPanel>
+            </StackPanel>
+
+            <!-- 按序粘贴展开态 -->
+            <StackPanel x:Name="SequentialPanel" Visibility="Collapsed">
+                <DockPanel Margin="0,0,0,6">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button ToolTip="上一段" Width="22" Height="22" Style="{StaticResource TactileButtonStyle}" Padding="0" Click="BtnSeqPrev_Click">
+                            <TextBlock Text="‹" FontSize="14" FontWeight="Bold" />
+                        </Button>
+                        <Button ToolTip="下一段" Width="22" Height="22" Style="{StaticResource TactileButtonStyle}" Padding="0" Click="BtnSeqNext_Click">
+                            <TextBlock Text="›" FontSize="14" FontWeight="Bold" />
+                        </Button>
+                        <Button ToolTip="重置到第 1 段" Width="22" Height="22" Style="{StaticResource TactileButtonStyle}" Padding="0" Click="BtnSeqReset_Click">
+                            <TextBlock Text="↺" FontSize="11.5" />
+                        </Button>
+                        <Button ToolTip="退出按序粘贴" Width="22" Height="22" Style="{StaticResource TactileButtonStyle}" Padding="0" Click="BtnSeqExit_Click">
+                            <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource DangerRedBrush}" />
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Background="{StaticResource AccentBrush}" CornerRadius="5" Padding="6,2" Margin="0,0,7,0">
+                            <TextBlock x:Name="SeqBadgeText" Text="按序 1/3" FontSize="10.5" FontWeight="SemiBold" Foreground="White" />
+                        </Border>
+                        <TextBlock Text="按 Ctrl+V / Alt+Shift+V 或点卡片粘贴"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </DockPanel>
+
+                <Border Background="{StaticResource SelectedTintBrush}"
+                        BorderBrush="{StaticResource AccentSoftBrush}"
+                        BorderThickness="1"
+                        CornerRadius="7"
+                        Padding="8,6"
+                        Margin="0,0,0,4">
+                    <StackPanel>
+                        <TextBlock Text="当前：" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,2" />
+                        <TextBlock x:Name="SeqCurrentText"
+                                   FontSize="12.5"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   TextWrapping="Wrap"
+                                   MaxHeight="60"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock x:Name="SeqNextText"
+                           FontSize="11"
+                           Foreground="{StaticResource TextTertiaryBrush}"
+                           TextTrimming="CharacterEllipsis"
+                           Visibility="Collapsed" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>
