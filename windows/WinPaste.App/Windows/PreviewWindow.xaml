@@ -41,21 +41,37 @@
                                     Margin="0,0,6,0"
                                     Visibility="Collapsed">
                                 <StackPanel Orientation="Horizontal">
-                                    <Button x:Name="BtnSegView" Content="分段" Style="{StaticResource TactileButtonStyle}" Padding="6,2" FontSize="11" Click="BtnSegView_Click" />
-                                    <Button x:Name="BtnRawView" Content="原文" Style="{StaticResource TactileButtonStyle}" Padding="6,2" FontSize="11" Click="BtnRawView_Click" />
+                                    <Button x:Name="BtnSegView" Style="{StaticResource TactileButtonStyle}" Padding="6,2" FontSize="11" Click="BtnSegView_Click">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="{StaticResource IconSequentialGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="10.5" Height="10.5" Stretch="Uniform" Margin="0,0,3,0" />
+                                            <TextBlock Text="分段" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="BtnRawView" Style="{StaticResource TactileButtonStyle}" Padding="6,2" FontSize="11" Click="BtnRawView_Click">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="{StaticResource IconLongTextGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="10.5" Height="10.5" Stretch="Uniform" Margin="0,0,3,0" />
+                                            <TextBlock Text="原文" />
+                                        </StackPanel>
+                                    </Button>
                                 </StackPanel>
                             </Border>
 
-                            <Button Style="{StaticResource TactileButtonStyle}" Padding="7,3" Margin="0,0,4,0" Click="BtnPin_Click" ToolTip="贴到屏幕">
-                                <TextBlock Text="贴图" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" />
+                            <Button Style="{StaticResource TactileButtonStyle}" Foreground="{StaticResource AccentBrush}" Padding="7,3" Margin="0,0,4,0" Click="BtnPin_Click" ToolTip="贴到屏幕">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Path Data="{StaticResource IconPinFillGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="10.5" Height="10.5" Stretch="Uniform" Margin="0,0,3,0" />
+                                    <TextBlock Text="贴图" FontSize="11" FontWeight="SemiBold" />
+                                </StackPanel>
                             </Button>
                             <Button Style="{StaticResource AccentPillButtonStyle}" Padding="8,3" Click="BtnCopyAll_Click">
-                                <TextBlock x:Name="CopyAllText" Text="复制全文" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Path Data="{StaticResource IconCopyGeometry}" Fill="White" Width="10.5" Height="10.5" Stretch="Uniform" Margin="0,0,3.5,0" />
+                                    <TextBlock x:Name="CopyAllText" Text="复制全文" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                                </StackPanel>
                             </Button>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock x:Name="PinBadge" Text="📌" FontSize="11" Margin="0,0,5,0" Visibility="Collapsed" VerticalAlignment="Center" />
+                            <Path x:Name="PinBadge" Data="{StaticResource IconPinFillGeometry}" Fill="{StaticResource PinOrangeBrush}" Width="11" Height="11" Stretch="Uniform" Margin="0,0,5,0" Visibility="Collapsed" VerticalAlignment="Center" />
                             <TextBlock x:Name="HeaderTitleText"
                                        FontSize="12"
                                        FontWeight="SemiBold"

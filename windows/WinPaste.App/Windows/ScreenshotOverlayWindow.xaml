@@ -57,31 +57,55 @@
                         <DropShadowEffect BlurRadius="14" ShadowDepth="3" Color="#35000000" Opacity="0.28" />
                     </Border.Effect>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <!-- 7 种标注工具 -->
-                        <Button x:Name="BtnToolRect" Content="矩形" ToolTip="矩形" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" Click="ToolBtn_Click" Tag="Rectangle" />
-                        <Button x:Name="BtnToolEllipse" Content="圆框" ToolTip="圆框" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" Click="ToolBtn_Click" Tag="Ellipse" />
-                        <Button x:Name="BtnToolArrow" Content="箭头" ToolTip="箭头" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" Click="ToolBtn_Click" Tag="Arrow" />
-                        <Button x:Name="BtnToolPen" Content="画笔" ToolTip="画笔" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" Click="ToolBtn_Click" Tag="Pen" />
-                        <Button x:Name="BtnToolHighlighter" Content="荧光" ToolTip="荧光笔" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" Click="ToolBtn_Click" Tag="Highlighter" />
-                        <Button x:Name="BtnToolMosaic" Content="马赛克" ToolTip="马赛克" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" Click="ToolBtn_Click" Tag="Mosaic" />
-                        <Button x:Name="BtnToolText" Content="文字" ToolTip="文字标注" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" Click="ToolBtn_Click" Tag="Text" />
+                        <!-- 7 种标注工具（纯矢量图标 + 中文 ToolTip，1:1 对齐 Mac 版浮动工具栏） -->
+                        <Button x:Name="BtnToolRect" Width="28" Height="26" Padding="0" ToolTip="矩形" Style="{StaticResource TactileButtonStyle}" Click="ToolBtn_Click" Tag="Rectangle">
+                            <Path Data="{StaticResource IconToolRectGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+                        <Button x:Name="BtnToolEllipse" Width="28" Height="26" Padding="0" ToolTip="圆框" Style="{StaticResource TactileButtonStyle}" Click="ToolBtn_Click" Tag="Ellipse">
+                            <Path Data="{StaticResource IconToolEllipseGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+                        <Button x:Name="BtnToolArrow" Width="28" Height="26" Padding="0" ToolTip="箭头" Style="{StaticResource TactileButtonStyle}" Click="ToolBtn_Click" Tag="Arrow">
+                            <Path Data="{StaticResource IconToolArrowGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+                        <Button x:Name="BtnToolPen" Width="28" Height="26" Padding="0" ToolTip="画笔" Style="{StaticResource TactileButtonStyle}" Click="ToolBtn_Click" Tag="Pen">
+                            <Path Data="{StaticResource IconToolPenGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="13.5" Height="13.5" Stretch="Uniform" />
+                        </Button>
+                        <Button x:Name="BtnToolHighlighter" Width="28" Height="26" Padding="0" ToolTip="荧光笔" Style="{StaticResource TactileButtonStyle}" Click="ToolBtn_Click" Tag="Highlighter">
+                            <Path Data="{StaticResource IconToolHighlighterGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+                        <Button x:Name="BtnToolMosaic" Width="28" Height="26" Padding="0" ToolTip="马赛克" Style="{StaticResource TactileButtonStyle}" Click="ToolBtn_Click" Tag="Mosaic">
+                            <Path Data="{StaticResource IconToolMosaicGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="13.5" Height="13.5" Stretch="Uniform" />
+                        </Button>
+                        <Button x:Name="BtnToolText" Width="28" Height="26" Padding="0" ToolTip="文字标注" Style="{StaticResource TactileButtonStyle}" Click="ToolBtn_Click" Tag="Text">
+                            <Path Data="{StaticResource IconToolTextGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="13" Height="13" Stretch="Uniform" />
+                        </Button>
 
                         <Border Width="1" Height="16" Background="#1A000000" Margin="4,0" />
 
                         <!-- 撤销 / 重做 -->
-                        <Button x:Name="BtnUndo" Content="撤销" ToolTip="撤销 (Ctrl+Z)" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" IsEnabled="False" Click="BtnUndo_Click" />
-                        <Button x:Name="BtnRedo" Content="重做" ToolTip="重做 (Ctrl+Y)" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" IsEnabled="False" Click="BtnRedo_Click" />
+                        <Button x:Name="BtnUndo" Width="28" Height="26" Padding="0" ToolTip="撤销 (Ctrl+Z)" Style="{StaticResource TactileButtonStyle}" IsEnabled="False" Click="BtnUndo_Click">
+                            <Path Data="{StaticResource IconUndoGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+                        <Button x:Name="BtnRedo" Width="28" Height="26" Padding="0" ToolTip="重做 (Ctrl+Y)" Style="{StaticResource TactileButtonStyle}" IsEnabled="False" Click="BtnRedo_Click">
+                            <Path Data="{StaticResource IconRedoGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
 
                         <Border Width="1" Height="16" Background="#1A000000" Margin="4,0" />
 
                         <!-- 滚动长截图 (L) -->
-                        <Button ToolTip="滚动长截图 (L)" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" Click="BtnScrollCapture_Click">
-                            <TextBlock Text="长截图 (L)" Foreground="#242424" />
+                        <Button ToolTip="滚动长截图 (L)" Style="{StaticResource TactileButtonStyle}" Padding="6,4" Click="BtnScrollCapture_Click">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconScrollCaptureGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="13" Height="13" Stretch="Uniform" Margin="0,0,4,0" />
+                                <TextBlock Text="长截图" FontSize="11.5" />
+                            </StackPanel>
                         </Button>
 
                         <!-- 原位翻译 + 24语种选择 -->
-                        <Button x:Name="BtnTranslate" ToolTip="OCR 原位翻译" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="7,4" Click="BtnTranslate_Click">
-                            <TextBlock x:Name="TxtTranslateBtn" Text="翻译" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
+                        <Button x:Name="BtnTranslate" ToolTip="OCR 原位翻译" Style="{StaticResource TactileButtonStyle}" Foreground="{StaticResource AccentBrush}" Padding="6,4" Click="BtnTranslate_Click">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconTranslateGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="13.5" Height="13.5" Stretch="Uniform" Margin="0,0,4,0" />
+                                <TextBlock x:Name="TxtTranslateBtn" Text="翻译" FontSize="11.5" FontWeight="SemiBold" />
+                            </StackPanel>
                         </Button>
                         <ComboBox x:Name="LanguageCombo"
                                   Width="88"
@@ -92,21 +116,35 @@
                                   VerticalContentAlignment="Center"
                                   SelectionChanged="LanguageCombo_SelectionChanged" />
                         <Button x:Name="BtnToggleOriginal"
-                                Content="原图"
                                 ToolTip="切换 原文/译文 显示"
                                 Style="{StaticResource TactileButtonStyle}"
-                                FontSize="11"
                                 Padding="5,4"
                                 Visibility="Collapsed"
-                                Click="BtnToggleOriginal_Click" />
+                                Click="BtnToggleOriginal_Click">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconCompareGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="12.5" Height="12.5" Stretch="Uniform" Margin="0,0,3,0" />
+                                <TextBlock x:Name="TxtToggleOriginal" Text="原图" FontSize="11" />
+                            </StackPanel>
+                        </Button>
 
                         <Border Width="1" Height="16" Background="#1A000000" Margin="4,0" />
 
                         <!-- 贴图 / 保存 / 取消 / 完成 -->
-                        <Button Content="贴图" ToolTip="贴图到桌面 (F3)" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" Click="BtnPin_Click" />
-                        <Button Content="保存" ToolTip="保存 PNG (Ctrl+S)" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" Click="BtnSave_Click" />
-                        <Button Content="取消" ToolTip="取消 (Esc)" Style="{StaticResource TactileButtonStyle}" FontSize="11.5" Padding="6,4" Foreground="{StaticResource DangerRedBrush}" Click="BtnCancel_Click" />
-                        <Button Content="完成" ToolTip="复制到剪贴板 (Enter)" Style="{StaticResource AccentPillButtonStyle}" FontSize="11.5" FontWeight="SemiBold" Padding="9,4" Margin="3,0,0,0" Click="BtnDone_Click" />
+                        <Button Width="28" Height="26" Padding="0" ToolTip="贴图到桌面 (F3)" Style="{StaticResource TactileButtonStyle}" Click="BtnPin_Click">
+                            <Path Data="{StaticResource IconPinFillGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="13" Height="13" Stretch="Uniform" />
+                        </Button>
+                        <Button Width="28" Height="26" Padding="0" ToolTip="保存 PNG (Ctrl+S)" Style="{StaticResource TactileButtonStyle}" Click="BtnSave_Click">
+                            <Path Data="{StaticResource IconSaveGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="13.5" Height="13.5" Stretch="Uniform" />
+                        </Button>
+                        <Button Width="28" Height="26" Padding="0" ToolTip="取消 (Esc)" Style="{StaticResource TactileButtonStyle}" Foreground="{StaticResource DangerRedBrush}" Click="BtnCancel_Click">
+                            <Path Data="{StaticResource IconCloseGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="12" Height="12" Stretch="Uniform" />
+                        </Button>
+                        <Button ToolTip="复制到剪贴板 (Enter)" Style="{StaticResource AccentPillButtonStyle}" Padding="8,4" Margin="3,0,0,0" Click="BtnDone_Click">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconCheckGeometry}" Fill="White" Width="13" Height="13" Stretch="Uniform" Margin="0,0,3,0" />
+                                <TextBlock Text="完成" FontSize="11.5" FontWeight="SemiBold" Foreground="White" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Border>
 

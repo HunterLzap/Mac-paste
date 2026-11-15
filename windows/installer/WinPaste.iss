@@ -30,6 +30,7 @@ OutputBaseFilename={#OutputBaseFilename}
 Compression=lzma2/normal
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\WinPaste.App\Assets\WinPaste.ico
 UninstallDisplayIcon={app}\WinPaste.exe
 UninstallDisplayName=WinPaste {#MyAppVersion}
 

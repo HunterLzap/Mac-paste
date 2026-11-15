@@ -121,7 +121,8 @@ public partial class TableCardView : UserControl
     {
         CollapsedPreviewScroller.Visibility = _expanded ? Visibility.Collapsed : Visibility.Visible;
         ExpandedContainer.Visibility = _expanded ? Visibility.Visible : Visibility.Collapsed;
-        ExpandChevron.Text = _expanded ? "收起 ▴" : "展开 ▾";
+        ExpandChevron.Text = _expanded ? "收起" : "展开";
+        ExpandChevronIcon.Data = (System.Windows.Media.Geometry)FindResource(_expanded ? "IconChevronUpGeometry" : "IconChevronDownGeometry");
         if (_expanded)
             BuildExpandedGrid();
     }

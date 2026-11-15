@@ -116,16 +116,23 @@
                         </Button>
 
                         <Button ToolTip="隐藏面板 (Esc)" Style="{StaticResource TactileButtonStyle}" Padding="6,5" Click="BtnHide_Click">
-                            <TextBlock Text="✕" FontSize="11.5" />
+                            <Path Data="{StaticResource IconCloseGeometry}"
+                                  Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  Width="11.5" Height="11.5" Stretch="Uniform" />
                         </Button>
                     </StackPanel>
 
-                    <TextBlock x:Name="AppTitleText"
-                               Text="WinPaste"
-                               FontSize="14.5"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}"
-                               VerticalAlignment="Center" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Width="22" Height="22" CornerRadius="6" Background="{StaticResource AccentBrush}" Margin="0,0,7,0">
+                            <Path Data="{StaticResource IconClipboardGeometry}" Fill="White" Width="13" Height="13" Stretch="Uniform" />
+                        </Border>
+                        <TextBlock x:Name="AppTitleText"
+                                   Text="WinPaste"
+                                   FontSize="14.5"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
                 </DockPanel>
 
                 <!-- 2. 4 分类分段选择器 -->
@@ -137,10 +144,30 @@
                         CornerRadius="8"
                         Padding="3">
                     <UniformGrid Columns="4">
-                        <Button x:Name="TabShortBtn" Content="短文本" Style="{StaticResource TactileButtonStyle}" FontSize="12" Padding="0,5" Click="Tab_Click" Tag="0" />
-                        <Button x:Name="TabLongBtn" Content="长文本" Style="{StaticResource TactileButtonStyle}" FontSize="12" Padding="0,5" Click="Tab_Click" Tag="1" />
-                        <Button x:Name="TabImageBtn" Content="图片" Style="{StaticResource TactileButtonStyle}" FontSize="12" Padding="0,5" Click="Tab_Click" Tag="2" />
-                        <Button x:Name="TabTableBtn" Content="表格" Style="{StaticResource TactileButtonStyle}" FontSize="12" Padding="0,5" Click="Tab_Click" Tag="3" />
+                        <Button x:Name="TabShortBtn" Style="{StaticResource TactileButtonStyle}" FontSize="12" Padding="0,5" Click="Tab_Click" Tag="0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconShortTextGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="12" Height="12" Stretch="Uniform" Margin="0,0,4,0" />
+                                <TextBlock Text="短文本" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="TabLongBtn" Style="{StaticResource TactileButtonStyle}" FontSize="12" Padding="0,5" Click="Tab_Click" Tag="1">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconLongTextGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="12" Height="12" Stretch="Uniform" Margin="0,0,4,0" />
+                                <TextBlock Text="长文本" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="TabImageBtn" Style="{StaticResource TactileButtonStyle}" FontSize="12" Padding="0,5" Click="Tab_Click" Tag="2">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconImageGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="12.5" Height="12.5" Stretch="Uniform" Margin="0,0,4,0" />
+                                <TextBlock Text="图片" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="TabTableBtn" Style="{StaticResource TactileButtonStyle}" FontSize="12" Padding="0,5" Click="Tab_Click" Tag="3">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconTableGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="12" Height="12" Stretch="Uniform" Margin="0,0,4,0" />
+                                <TextBlock Text="表格" />
+                            </StackPanel>
+                        </Button>
                     </UniformGrid>
                 </Border>
 
@@ -161,7 +188,7 @@
                                 HorizontalAlignment="Center"
                                 Visibility="Collapsed">
                         <Border Width="48" Height="48" CornerRadius="24" Background="{StaticResource SubtleSurfaceBrush}" Margin="0,0,0,10">
-                            <TextBlock Text="📋" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Path Data="{StaticResource IconClipboardGeometry}" Fill="{StaticResource TextTertiaryBrush}" Width="22" Height="22" Stretch="Uniform" />
                         </Border>
                         <TextBlock x:Name="EmptyStateLabel"
                                    Text="暂无剪贴板历史"
@@ -180,9 +207,13 @@
                     <DockPanel>
                         <Button DockPanel.Dock="Right"
                                 Style="{StaticResource TactileButtonStyle}"
+                                Foreground="{StaticResource DangerRedBrush}"
                                 Padding="8,3"
                                 Click="BtnClearHistory_Click">
-                            <TextBlock Text="清空历史" FontSize="11.5" Foreground="{StaticResource DangerRedBrush}" />
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconDeleteGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="11.5" Height="11.5" Stretch="Uniform" Margin="0,0,3.5,0" />
+                                <TextBlock Text="清空历史" FontSize="11.5" />
+                            </StackPanel>
                         </Button>
                         <TextBlock x:Name="FooterCountText"
                                    Text="共 0 条"

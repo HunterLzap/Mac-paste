@@ -18,9 +18,24 @@
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                     <TextBlock x:Name="ZoomLabel" Text="100%" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <Button Content="复制" Style="{StaticResource TactileButtonStyle}" FontSize="12" Margin="0,0,4,0" Click="BtnCopy_Click" />
-                    <Button Content="贴图 (F3)" Style="{StaticResource AccentPillButtonStyle}" FontSize="12" Margin="0,0,4,0" Click="BtnPin_Click" />
-                    <Button Content="另存为" Style="{StaticResource TactileButtonStyle}" FontSize="12" Click="BtnSave_Click" />
+                    <Button Style="{StaticResource TactileButtonStyle}" FontSize="12" Margin="0,0,4,0" Click="BtnCopy_Click">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Path Data="{StaticResource IconCopyGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="12" Height="12" Stretch="Uniform" Margin="0,0,4,0" />
+                            <TextBlock Text="复制" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource AccentPillButtonStyle}" FontSize="12" Margin="0,0,4,0" Click="BtnPin_Click">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Path Data="{StaticResource IconPinFillGeometry}" Fill="White" Width="12" Height="12" Stretch="Uniform" Margin="0,0,4,0" />
+                            <TextBlock Text="贴图 (F3)" Foreground="White" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource TactileButtonStyle}" FontSize="12" Click="BtnSave_Click">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Path Data="{StaticResource IconSaveGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="12" Height="12" Stretch="Uniform" Margin="0,0,4,0" />
+                            <TextBlock Text="另存为" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
                 <TextBlock x:Name="InfoLabel"
                            FontSize="12.5"

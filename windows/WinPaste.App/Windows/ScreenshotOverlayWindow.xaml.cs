@@ -827,7 +827,7 @@ public partial class ScreenshotOverlayWindow : Window
     private void BtnToggleOriginal_Click(object sender, RoutedEventArgs e)
     {
         _showTranslated = !_showTranslated;
-        BtnToggleOriginal.Content = _showTranslated ? "原图" : "译文";
+        TxtToggleOriginal.Text = _showTranslated ? "原图" : "译文";
         SkiaCanvas.InvalidateVisual();
     }
 
@@ -863,7 +863,7 @@ public partial class ScreenshotOverlayWindow : Window
             _translatedBlocks = styled;
             _showTranslated = true;
             BtnToggleOriginal.Visibility = Visibility.Visible;
-            BtnToggleOriginal.Content = "原图";
+            TxtToggleOriginal.Text = "原图";
             SkiaCanvas.InvalidateVisual();
             ShowToast($"已原位翻译 {styled.Count} 个文本块");
         }

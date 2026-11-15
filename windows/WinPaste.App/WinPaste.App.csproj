@@ -11,6 +11,7 @@
     <RootNamespace>WinPaste.App</RootNamespace>
     <AssemblyName>WinPaste</AssemblyName>
     <Version>1.2.0</Version>
+    <ApplicationIcon>Assets\WinPaste.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
   </PropertyGroup>

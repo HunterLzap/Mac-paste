@@ -35,10 +35,11 @@ public partial class PinToolbarWindow : Window
 
     public void UpdateState(bool collapsed, double opacity, string modeLabel)
     {
-        BtnCollapse.Content = collapsed ? "展开" : "收起";
-        BtnOpacity.Content = $"{Math.Round(opacity * 100)}%";
-        TxtBilingual.Text = modeLabel == "Bilingual" ? "返回原图" : "双语对照";
-        BtnOcr.Content = modeLabel == "Ocr" ? "返回原图" : "OCR取字";
+        TxtCollapse.Text = collapsed ? "展开" : "收起";
+        IconCollapse.Data = (System.Windows.Media.Geometry)FindResource(collapsed ? "IconExpandGeometry" : "IconCollapseGeometry");
+        TxtOpacity.Text = $"{Math.Round(opacity * 100)}%";
+        TxtBilingual.Text = modeLabel == "Bilingual" ? "原图" : "翻译";
+        TxtOcr.Text = modeLabel == "Ocr" ? "原图" : "识字";
     }
 
     public void PositionBeside(Window ownerPin)

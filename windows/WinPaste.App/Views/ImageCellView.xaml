@@ -45,20 +45,25 @@
                             ToolTip="贴到屏幕 (F3)"
                             Style="{StaticResource TactileButtonStyle}"
                             Click="BtnPinToScreen_Click">
-                        <TextBlock Text="贴屏" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Path Data="{StaticResource IconPinFillGeometry}" Fill="{StaticResource AccentBrush}" Width="10" Height="10" Stretch="Uniform" Margin="0,0,2.5,0" />
+                            <TextBlock Text="贴屏" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" />
+                        </StackPanel>
                     </Button>
                 </Grid>
             </Border>
 
             <!-- 页脚尺寸/时间 + 置顶标 -->
             <DockPanel Grid.Row="1" Margin="2,5,2,1">
-                <TextBlock x:Name="PinBadge"
-                           DockPanel.Dock="Right"
-                           Text="📌"
-                           FontSize="10.5"
-                           Foreground="{StaticResource PinOrangeBrush}"
-                           Visibility="Collapsed"
-                           VerticalAlignment="Center" />
+                <Path x:Name="PinBadge"
+                      DockPanel.Dock="Right"
+                      Data="{StaticResource IconPinFillGeometry}"
+                      Fill="{StaticResource PinOrangeBrush}"
+                      Width="10.5"
+                      Height="10.5"
+                      Stretch="Uniform"
+                      Visibility="Collapsed"
+                      VerticalAlignment="Center" />
                 <TextBlock x:Name="MetaText"
                            FontSize="10.5"
                            Foreground="{StaticResource TextTertiaryBrush}"

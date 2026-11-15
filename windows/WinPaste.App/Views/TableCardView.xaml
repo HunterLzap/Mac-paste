@@ -31,27 +31,39 @@
             <DockPanel Grid.Row="0" LastChildFill="True">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <StackPanel x:Name="HoverActions" Orientation="Horizontal" Visibility="Collapsed" Margin="0,0,4,0">
-                        <Button ToolTip="贴到屏幕 (F3)" Style="{StaticResource TactileButtonStyle}" Padding="5,3" Click="BtnPinToScreen_Click">
-                            <TextBlock Text="贴图" FontSize="11" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
+                        <Button ToolTip="贴到屏幕 (F3)" Style="{StaticResource TactileButtonStyle}" Foreground="{StaticResource AccentBrush}" Padding="5,3" Click="BtnPinToScreen_Click">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconPinFillGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="10.5" Height="10.5" Stretch="Uniform" Margin="0,0,2.5,0" />
+                                <TextBlock Text="贴图" FontSize="11" FontWeight="SemiBold" />
+                            </StackPanel>
                         </Button>
                         <Button ToolTip="置顶" Style="{StaticResource TactileButtonStyle}" Padding="5,3" Click="BtnTogglePin_Click">
-                            <TextBlock x:Name="BtnPinLabel" Text="置顶" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconPinFillGeometry}" Fill="{StaticResource PinOrangeBrush}" Width="10.5" Height="10.5" Stretch="Uniform" Margin="0,0,2.5,0" />
+                                <TextBlock x:Name="BtnPinLabel" Text="置顶" FontSize="11" />
+                            </StackPanel>
                         </Button>
-                        <Button ToolTip="删除" Style="{StaticResource TactileButtonStyle}" Padding="5,3" Click="BtnDelete_Click">
-                            <TextBlock Text="删除" FontSize="11" Foreground="{StaticResource DangerRedBrush}" />
+                        <Button ToolTip="删除" Style="{StaticResource TactileButtonStyle}" Foreground="{StaticResource DangerRedBrush}" Padding="5,3" Click="BtnDelete_Click">
+                            <Path Data="{StaticResource IconDeleteGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="11.5" Height="11.5" Stretch="Uniform" />
                         </Button>
                     </StackPanel>
 
-                    <TextBlock x:Name="PinBadge" Text="📌" FontSize="11" Foreground="{StaticResource PinOrangeBrush}" Margin="0,0,4,0" Visibility="Collapsed" VerticalAlignment="Center" />
+                    <Path x:Name="PinBadge" Data="{StaticResource IconPinFillGeometry}" Fill="{StaticResource PinOrangeBrush}" Width="11" Height="11" Stretch="Uniform" Margin="0,0,5,0" Visibility="Collapsed" VerticalAlignment="Center" />
 
                     <Button Style="{StaticResource TactileButtonStyle}" Padding="6,3" Click="BtnToggleExpand_Click" ToolTip="展开 / 收起完整表格">
-                        <TextBlock x:Name="ExpandChevron" Text="展开 ▾" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="ExpandChevron" Text="展开" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,3,0" />
+                            <Path x:Name="ExpandChevronIcon" Data="{StaticResource IconChevronDownGeometry}" Fill="{StaticResource TextSecondaryBrush}" Width="10" Height="10" Stretch="Uniform" />
+                        </StackPanel>
                     </Button>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Border Background="#14007AFF" CornerRadius="4" Padding="5,2" Margin="0,0,7,0">
-                        <TextBlock Text="表格" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Path Data="{StaticResource IconTableGeometry}" Fill="{StaticResource AccentBrush}" Width="10.5" Height="10.5" Stretch="Uniform" Margin="0,0,3,0" />
+                            <TextBlock Text="表格" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" />
+                        </StackPanel>
                     </Border>
                     <TextBlock x:Name="HeaderMetaText"
                                FontSize="12"
