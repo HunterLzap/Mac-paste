@@ -93,4 +93,24 @@ public sealed class ClipboardIngestorAndOcrIntegrationTests : IDisposable
         Assert.Equal(bmp.Width, outBmp.Width);
         Assert.Equal(bmp.Height, outBmp.Height);
     }
+
+    [Fact]
+    public void RapidOcrEngine_ExtractsEmbeddedV5Models_ForStandaloneSingleFileExe()
+    {
+        string[] modelFiles =
+        [
+            "ch_PP-OCRv5_mobile_det.onnx",
+            "ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx",
+            "latin_PP-OCRv5_rec_mobile_infer.onnx",
+            "ppocrv5_latin_dict.txt"
+        ];
+
+        string destDir = Path.Combine(_tempDir, "extracted-v5");
+        foreach (string file in modelFiles)
+        {
+            string dest = Path.Combine(destDir, file);
+            Assert.True(RapidOcrEngine.TryExtractEmbeddedV5File(file, dest), $"Missing embedded resource: {file}");
+            Assert.True(new FileInfo(dest).Length > 100);
+        }
+    }
 }

@@ -13,6 +13,11 @@ on:
       - 'windows/**'
       - '.github/workflows/windows-build.yml'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Optional GitHub Release tag (e.g. v1.2.0) to attach .exe assets'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -50,15 +55,40 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o publish/win-x64
 
-      - name: Package portable WinPaste zip
+      - name: Ensure Inno Setup and build Setup.exe
         shell: pwsh
         run: |
-          Get-ChildItem publish/win-x64 -Include *.pdb,*.lib -Recurse | Remove-Item -Force
-          New-Item -ItemType Directory -Force -Path publish/dist | Out-Null
-          Compress-Archive -Path publish/win-x64/* -DestinationPath publish/dist/WinPaste.zip -Force
-          if ("${{ github.ref }}" -like "refs/tags/v*") {
+          $ErrorActionPreference = 'Stop'
+          $tag = "${{ inputs.release_tag }}"
+          if (-not $tag -and "${{ github.ref }}" -like "refs/tags/v*") {
             $tag = "${{ github.ref_name }}"
-            Copy-Item publish/dist/WinPaste.zip "publish/dist/WinPaste-$tag-win-x64.zip" -Force
+          }
+          $ver = if ($tag) { $tag.TrimStart('v') } else { "1.2.0" }
+
+          New-Item -ItemType Directory -Force -Path publish/dist | Out-Null
+          Copy-Item publish/win-x64/WinPaste.exe publish/dist/WinPaste.exe -Force
+          if ($tag) {
+            Copy-Item publish/win-x64/WinPaste.exe "publish/dist/WinPaste-$tag-win-x64.exe" -Force
+          }
+
+          $iscc = Get-Command iscc -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
+          if (-not $iscc) {
+            $candidates = @(
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+              "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+            )
+            $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $iscc) {
+            choco install innosetup -y --no-progress
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+
+          & $iscc "/DMyAppVersion=$ver" "/DSourceExe=$(Resolve-Path 'publish\win-x64\WinPaste.exe')" "/DOutputDir=$(Resolve-Path 'publish\dist')" "/DOutputBaseFilename=WinPaste-Setup" "windows\installer\WinPaste.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          if ($tag) {
+            Copy-Item publish/dist/WinPaste-Setup.exe "publish/dist/WinPaste-$tag-win-x64-Setup.exe" -Force
           }
 
       - name: Upload WinPaste Windows artifact
@@ -68,11 +98,17 @@ jobs:
           path: publish/dist/
           if-no-files-found: error
 
-      - name: Upload WinPaste release assets on tag
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Upload WinPaste release assets
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
-          gh release upload $tag "publish/dist/WinPaste-$tag-win-x64.zip" "publish/dist/WinPaste.zip" --clobber
+          $tag = "${{ inputs.release_tag }}"
+          if (-not $tag) { $tag = "${{ github.ref_name }}" }
+          gh release upload $tag `
+            "publish/dist/WinPaste-$tag-win-x64-Setup.exe" `
+            "publish/dist/WinPaste-Setup.exe" `
+            "publish/dist/WinPaste-$tag-win-x64.exe" `
+            "publish/dist/WinPaste.exe" `
+            --clobber

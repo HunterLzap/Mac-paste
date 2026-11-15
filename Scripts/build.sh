@@ -1,5 +1,5 @@
 #!/bin/bash
-# MacPaste 打包：swiftc 直接编译（绕开 SwiftPM 的 sandbox/manifest 机制）→ 组装 .app → ad-hoc 签名
+# MacPaste 打包：swiftc 直接编译（绕开 SwiftPM 的 sandbox/manifest 机制）→ 组装 .app → 签名 → 生成 .dmg 镜像
 # 固定 SDK：CLT 缺 libSwiftUIMacros.dylib 插件，27.0 SDK 的 SwiftUI @State 已改为宏无法编译，26.5 SDK 正常
 set -e
 cd "$(dirname "$0")/.."
@@ -10,8 +10,10 @@ elif [ -z "$SDKROOT" ]; then
   export SDKROOT="$(xcrun --show-sdk-path 2>/dev/null || true)"
 fi
 
-echo "==> swiftc release 编译"
-mkdir -p build/bin
+VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" App/Info.plist 2>/dev/null || echo "1.2.0")
+
+echo "==> swiftc release 编译 (v${VERSION})"
+mkdir -p build/bin build/release
 swiftc -O -target arm64-apple-macos13.0 -lsqlite3 \
   $(find Sources/MacPaste -name '*.swift' | sort) \
   -o build/bin/MacPaste
@@ -34,4 +36,20 @@ else
   echo "==> 未找到稳定身份，回退 ad-hoc 签名（辅助功能授权将随重打包失效）"
 fi
 
-echo "✅ 打包完成: $(pwd)/$APP"
+echo "==> 生成 .dmg 安装镜像"
+STAGE=build/dmg-staging
+rm -rf "$STAGE"
+mkdir -p "$STAGE"
+ditto "$APP" "$STAGE/MacPaste.app"
+ln -s /Applications "$STAGE/Applications"
+
+DMG_VER="build/release/MacPaste-v${VERSION}-macOS-arm64.dmg"
+DMG_LATEST="build/release/MacPaste.dmg"
+rm -f "$DMG_VER" "$DMG_LATEST"
+hdiutil create -volname "MacPaste" -srcfolder "$STAGE" -ov -format UDZO "$DMG_VER" >/dev/null
+cp "$DMG_VER" "$DMG_LATEST"
+rm -rf "$STAGE"
+
+echo "✅ 打包完成:"
+echo "   App: $(pwd)/$APP"
+echo "   DMG: $(pwd)/$DMG_VER"

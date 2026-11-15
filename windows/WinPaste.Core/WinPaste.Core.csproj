@@ -9,9 +9,15 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
-    <PackageReference Include="RapidOcrNet" Version="4.2.0" />
+    <PackageReference Include="RapidOcrNet" Version="4.2.0" GeneratePathProperty="true" />
     <PackageReference Include="SkiaSharp" Version="3.119.1" />
     <PackageReference Include="SkiaSharp.NativeAssets.macOS" Version="3.119.1" />
     <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.1" />
+  </ItemGroup>
+
+  <!-- 将默认 PP-OCRv5 模型内嵌进核心程序集，使单文件 WinPaste.exe 无需外部 models 文件夹即可直接双击运行 -->
+  <ItemGroup Condition="Exists('$(PkgRapidOcrNet)/models/v5')">
+    <EmbeddedResource Include="$(PkgRapidOcrNet)/models/v5/*"
+                      LogicalName="WinPaste.Core.OCR.Models.v5.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

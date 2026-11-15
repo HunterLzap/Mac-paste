@@ -41,15 +41,14 @@
 👉 **[前往 GitHub Releases 下载最新版本 (`v1.2.0`)](https://github.com/HunterLzap/Mac-paste/releases/latest)**
 
 ### 🍎 macOS（Apple Silicon `arm64`，macOS 13.0+）
-- 安装包：`MacPaste-v1.2.0-macOS-arm64.zip`（或固定链接 `MacPaste.zip`）
-1. 双击解压出 `MacPaste.app`，拖入「访达 → 应用程序」（`/Applications`）。
+- 安装包：**`MacPaste-v1.2.0-macOS-arm64.dmg`**（或固定链接 **`MacPaste.dmg`**）
+1. 双击打开 `.dmg` 镜像，将 `MacPaste.app` 拖入右侧 `Applications` 替身文件夹。
 2. **首次打开授权（无 Apple 年费公证证书）**：在「应用程序」中**按住 `Control` 键单击（或右键）`MacPaste.app` → 选择「打开」**，或终端执行 `xattr -cr /Applications/MacPaste.app`。
 
-### 🪟 Windows（Windows 10 / 11 64 位便携自包含包，无需额外装 .NET）
-- 安装包：`WinPaste-v1.2.0-win-x64.zip`（或固定链接 `WinPaste.zip`）
-1. 下载后**完整解压**到任意目录（保留同级 `WinPaste.exe` 与 `models/` OCR 模型文件夹），双击 `WinPaste.exe` 即驻留系统托盘。
-2. 如遇 SmartScreen 未知发布者拦截：点击「**更多信息 → 仍要运行**」即可。
-3. *可选中英混排离线 OCR 增强*：便携包默认内置 PP-OCRv5 拉丁模型；若需离线识别中英混排截图文字，将 PP-OCRv5 中文模型放入同级 `models/custom-v5/` 目录即自动优先加载。
+### 🪟 Windows（Windows 10 / 11 64 位，无需额外装 .NET）
+- **标准安装版（推荐）**：**`WinPaste-v1.2.0-win-x64-Setup.exe`**（或 **`WinPaste-Setup.exe`**）—— 经典向导安装，支持桌面/开始菜单快捷方式与控制面板卸载。
+- **单文件绿色版**：**`WinPaste-v1.2.0-win-x64.exe`**（或 **`WinPaste.exe`**）—— 已将默认 PP-OCRv5 模型内嵌进单文件可执行程序，下载后**无需解压、双击即运行**，首次 OCR 时自动释放模型至 `%LOCALAPPDATA%\WinPaste\models\v5\`。
+- *SmartScreen 提示*：首次运行如遇未知发布者拦截，点击「**更多信息 → 仍要运行**」即可；如需离线识别中英混排截图，可将自定义 PP-OCRv5 中文模型放入 `%LOCALAPPDATA%\WinPaste\models\custom-v5\`。
 
 ---
 
@@ -95,7 +94,7 @@
 ```bash
 git clone https://github.com/HunterLzap/Mac-paste.git && cd Mac-paste
 bash Scripts/build.sh
-# 输出产物：build/MacPaste.app
+# 输出产物：build/MacPaste.app 与 build/release/MacPaste-v1.2.0-macOS-arm64.dmg
 ```
 
 ### Windows 构建与测试（需要 .NET 8 SDK）
@@ -105,10 +104,10 @@ cd Mac-paste
 dotnet restore windows/WinPaste.sln
 dotnet build windows/WinPaste.sln -c Release --no-restore
 dotnet test windows/WinPaste.Tests/WinPaste.Tests.csproj -c Release --no-build --verbosity normal
-# 生成单文件便携可执行包：
+# 生成单文件便携可执行程序（已内嵌默认 PP-OCRv5 模型）：
 dotnet publish windows/WinPaste.App/WinPaste.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish/win-x64
 ```
-> 仓库已配置 [windows-build.yml](.github/workflows/windows-build.yml)，每次推送至 `windows/**` 或打 `v*` 标签都会在 `windows-latest` Runner 上自动执行全量编译、`WinPaste.Tests` 回归测试并打包 `WinPaste-win-x64.zip`。
+> 仓库已配置 [windows-build.yml](.github/workflows/windows-build.yml)，每次推送至 `windows/**` 或打 `v*` 标签都会在 `windows-latest` Runner 上自动执行全量编译、`WinPaste.Tests` 回归测试，并通过 Inno Setup（[WinPaste.iss](windows/installer/WinPaste.iss)）打包 `WinPaste-Setup.exe` 与单文件 `WinPaste.exe`。
 
 <details>
 <summary><strong>🔐 数据安全、目录结构与系统权限 (点击展开)</strong></summary>
@@ -121,7 +120,7 @@ dotnet publish windows/WinPaste.App/WinPaste.App.csproj -c Release -r win-x64 --
   - `Sources/MacPaste/`：macOS 原生 Swift / SwiftUI 源码
   - `windows/WinPaste.Core/`：跨平台核心引擎（剪贴板解析、表格解析、SQLite 存储、OCR 分块与断词、原位样式检测与双遍擦除重绘、长图拼接）
   - `windows/WinPaste.App/`：Windows WPF + SkiaSharp 桌面端应用与 Win32 P/Invoke 互操作层
-  - `windows/WinPaste.Tests/`：xUnit 核心算法与端到端 OCR 集成测试套件（35 项测试全通过）
+  - `windows/WinPaste.Tests/`：xUnit 核心算法与端到端 OCR 集成测试套件（36 项测试全通过）
 - **macOS 所需权限**：屏幕录制（F1 截图/取色/长截图）、辅助功能（仅点击自动回贴/按序粘贴模拟 `⌘V` 时需要）。
 
 </details>

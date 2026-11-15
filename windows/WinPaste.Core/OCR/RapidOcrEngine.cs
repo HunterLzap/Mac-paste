@@ -200,7 +200,9 @@ public sealed class RapidOcrEngine : IOcrEngine, IDisposable
     {
         string[] candidateRoots =
         [
+            Path.Combine(AppContext.BaseDirectory, "models", "custom-v5"),
             Path.Combine(AppContext.BaseDirectory, "models", "v5"),
+            Path.Combine(AppPaths.Default.OcrModelsDir, "custom-v5"),
             Path.Combine(AppPaths.Default.OcrModelsDir, "v5")
         ];
 
@@ -233,11 +235,42 @@ public sealed class RapidOcrEngine : IOcrEngine, IDisposable
         if (File.Exists(baseCandidate))
             return baseCandidate;
 
-        string supportCandidate = Path.Combine(AppPaths.Default.OcrModelsDir, "v5", fileName);
-        if (File.Exists(supportCandidate))
+        string targetDir = Path.Combine(AppPaths.Default.OcrModelsDir, "v5");
+        string supportCandidate = Path.Combine(targetDir, fileName);
+        if (File.Exists(supportCandidate) && new FileInfo(supportCandidate).Length > 0)
+            return supportCandidate;
+
+        if (TryExtractEmbeddedV5File(fileName, supportCandidate))
             return supportCandidate;
 
         return Path.Combine("models", "v5", fileName);
+    }
+
+    public static bool TryExtractEmbeddedV5File(string fileName, string destinationPath)
+    {
+        string resourceName = "WinPaste.Core.OCR.Models.v5." + fileName;
+        using Stream? stream = typeof(RapidOcrEngine).Assembly.GetManifestResourceStream(resourceName);
+        if (stream == null)
+            return false;
+
+        string? dir = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        string tempPath = destinationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var fs = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.CopyTo(fs);
+            }
+            File.Move(tempPath, destinationPath, overwrite: true);
+            return true;
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+        }
     }
 
     public void Dispose()
